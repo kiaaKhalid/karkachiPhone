@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
@@ -58,7 +59,6 @@ async function bootstrap() {
 
   const isProd = process.env.NODE_ENV === 'production';
   app.use(
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     csurf({
       cookie: {
         httpOnly: true,
