@@ -3,7 +3,6 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
-import csurf from 'csurf';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -29,7 +28,6 @@ async function bootstrap() {
     allowedHeaders: [
       'Content-Type',
       'Authorization',
-      'X-CSRF-Token',
       'X-Requested-With',
       'Accept',
       'Origin',
@@ -53,21 +51,9 @@ async function bootstrap() {
     }),
   );
 
-  // Cookies + CSRF
+  // Cookies only (CSRF disabled)
   const cookieSecret = process.env.COOKIE_SECRET || 'change-me-cookie-secret';
   app.use(cookieParser(cookieSecret));
-
-  const isProd = process.env.NODE_ENV === 'production';
-  app.use(
-    csurf({
-      cookie: {
-        httpOnly: true,
-        sameSite: 'strict',
-        secure: isProd,
-      },
-      ignoreMethods: ['GET', 'HEAD', 'OPTIONS'],
-    }),
-  );
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);

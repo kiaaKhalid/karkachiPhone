@@ -1,61 +1,97 @@
 import { Injectable } from '@nestjs/common';
-import * as bcrypt from 'bcryptjs';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { Role } from '../common/enums/role.enum';
-
-export interface UserEntity {
-  id: number;
-  email: string;
-  passwordHash: string;
-  roles: Role[];
-  isActive: boolean;
-}
+import { User } from './entities/user.entity';
+import { AuthProvider } from './entities/auth-provider.enum';
 
 @Injectable()
 export class UsersService {
-  private users: UserEntity[] = [];
-  private idSeq = 1;
+  constructor(
+    @InjectRepository(User)
+    private readonly usersRepo: Repository<User>,
+  ) {}
 
-  constructor() {
-    // Seed demo users
-    this.seed();
-  }
-
-  private async seed() {
-    await this.createUser('user@example.com', 'password123', [Role.USER]);
-    await this.createUser('admin@example.com', 'password123', [Role.ADMIN]);
-    await this.createUser('super@example.com', 'password123', [
-      Role.SUPER_ADMIN,
-    ]);
-    await this.createUser('livreur@example.com', 'password123', [Role.LIVREUR]);
-  }
-
-  async createUser(
-    email: string,
-    password: string,
-    roles: Role[] = [Role.USER],
-  ) {
+  async createUser(params: {
+    email: string;
+    password: string;
+    name?: string;
+    role?: Role;
+  }): Promise<User> {
+    const { email, password, name = '', role = Role.USER } = params;
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
-    const user: UserEntity = {
-      id: this.idSeq++,
+
+    const user = this.usersRepo.create({
       email: email.toLowerCase(),
-      passwordHash,
-      roles,
+      name,
+      password: passwordHash,
+      role,
       isActive: true,
-    };
-    this.users.push(user);
-    return user;
+    });
+    return this.usersRepo.save(user);
   }
 
-  async findByEmail(email: string): Promise<UserEntity | undefined> {
-    return this.users.find((u) => u.email === email.toLowerCase());
+  async findByEmail(email: string): Promise<User | null> {
+    return this.usersRepo.findOne({ where: { email: email.toLowerCase() } });
   }
 
-  async findById(id: number): Promise<UserEntity | undefined> {
-    return this.users.find((u) => u.id === id);
+  async findById(id: string): Promise<User | null> {
+    return this.usersRepo.findOne({ where: { id } });
   }
 
-  async validatePassword(user: UserEntity, password: string): Promise<boolean> {
-    return bcrypt.compare(password, user.passwordHash);
+  async setRefreshToken(
+    userId: string,
+    hashedRt: string | null,
+  ): Promise<void> {
+    await this.usersRepo.update({ id: userId }, { refreshToken: hashedRt });
+  }
+
+  async validatePassword(user: User, password: string): Promise<boolean> {
+    if (!user.password) return false;
+    return bcrypt.compare(password, user.password);
+  }
+
+  async findOrCreateOAuthUser(params: {
+    provider: AuthProvider;
+    email: string;
+    name?: string;
+    avatarUrl?: string | null;
+    emailVerified?: boolean;
+  }): Promise<User> {
+    const {
+      provider,
+      email,
+      name = '',
+      avatarUrl = null,
+      emailVerified,
+    } = params;
+    const existing = await this.findByEmail(email);
+    if (existing) {
+      // Ensure provider is set and user active
+      if (existing.authProvider !== provider) {
+        existing.authProvider = provider;
+      }
+      if (typeof emailVerified === 'boolean') {
+        existing.isEmailVerified = emailVerified;
+      }
+      if (!existing.name && name) existing.name = name;
+      if (!existing.avatarUrl && avatarUrl) existing.avatarUrl = avatarUrl;
+      existing.isActive = true;
+      return this.usersRepo.save(existing);
+    }
+
+    const user = this.usersRepo.create({
+      email: email.toLowerCase(),
+      name,
+      avatarUrl,
+      password: null,
+      role: Role.USER,
+      isActive: true,
+      isEmailVerified: Boolean(emailVerified),
+      authProvider: provider,
+    });
+    return this.usersRepo.save(user);
   }
 }

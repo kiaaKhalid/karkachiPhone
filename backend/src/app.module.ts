@@ -4,6 +4,8 @@ import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { ExampleController } from './example/example.controller';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
 import { User } from './users/entities/user.entity';
 import { Review } from './reviews/entities/review.entity';
 import { Product } from './products/entities/product.entity';
@@ -13,34 +15,66 @@ import { Order } from './orders/entities/order.entity';
 import { OrderItem } from './orders/entities/order-item.entity';
 import { Category } from './categories/entities/category.entity';
 import { Brand } from './brands/entities/brand.entity';
+import { createPool } from 'mysql2/promise';
+
+async function ensureDatabaseExists() {
+  const host = process.env.DB_HOST || 'localhost';
+  const port = Number(process.env.DB_PORT || 3306);
+  const user = process.env.DB_USER || 'root';
+  const password = process.env.DB_PASSWORD || '';
+  const database = process.env.DB_NAME || 'karkachi_phone';
+
+  const pool = createPool({
+    host,
+    port,
+    user,
+    password,
+    waitForConnections: true,
+  });
+  try {
+    await pool.query(
+      `CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`,
+    );
+  } finally {
+    await pool.end();
+  }
+}
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
-      useFactory: () => ({
-        type: 'mysql',
-        host: process.env.DB_HOST || 'localhost',
-        port: Number(process.env.DB_PORT || 3306),
-        username: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'karkachi_phone',
-        // autoLoadEntities: true can be used, but we list entities explicitly for clarity
-        entities: [
-          User,
-          Review,
-          Product,
-          ProductImage,
-          ProductSpec,
-          Order,
-          OrderItem,
-          Category,
-          Brand,
-        ],
-        synchronize: process.env.NODE_ENV !== 'production',
-        // logging: process.env.TYPEORM_LOGGING === 'true',
-      }),
+      useFactory: async () => {
+        // In non-production, ensure DB exists to allow auto table creation
+        if (process.env.NODE_ENV !== 'production') {
+          await ensureDatabaseExists();
+        }
+        return {
+          type: 'mysql',
+          host: process.env.DB_HOST || 'localhost',
+          port: Number(process.env.DB_PORT || 3306),
+          username: process.env.DB_USER || 'root',
+          password: process.env.DB_PASSWORD || '',
+          database: process.env.DB_NAME || 'karkachi_phone',
+          // autoLoadEntities: true can be used, but we list entities explicitly for clarity
+          entities: [
+            User,
+            Review,
+            Product,
+            ProductImage,
+            ProductSpec,
+            Order,
+            OrderItem,
+            Category,
+            Brand,
+          ],
+          synchronize: process.env.NODE_ENV !== 'production',
+          // logging: process.env.TYPEORM_LOGGING === 'true',
+        } as const;
+      },
     }),
+    UsersModule,
+    AuthModule,
     RateLimitModule.forRoot({
       trustProxy: true, // enable when behind reverse proxy / CDN in prod
       keyStrategy: 'ip', // global default

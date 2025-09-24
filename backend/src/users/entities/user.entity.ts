@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return */
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -10,11 +11,12 @@ import {
 import { Exclude } from 'class-transformer';
 import { Order } from '../../orders/entities/order.entity';
 import { Review } from '../../reviews/entities/review.entity';
-import { UserRole } from './user-role.enum';
 import { AuthProvider } from './auth-provider.enum';
+import { Role } from '../../common/enums/role.enum';
 
 @Entity('users')
 @Index(['role'])
+@Index(['email'])
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -29,7 +31,7 @@ export class User {
   phone?: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  @Exclude()
+  @Exclude({ toPlainOnly: true })
   password: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
@@ -40,10 +42,10 @@ export class User {
 
   @Column({
     type: 'enum',
-    enum: UserRole,
-    default: UserRole.USER,
+    enum: Role,
+    default: Role.USER,
   })
-  role: UserRole;
+  role: Role;
 
   @Column({ type: 'enum', enum: AuthProvider, default: AuthProvider.LOCAL })
   authProvider: AuthProvider;
@@ -52,12 +54,12 @@ export class User {
   isActive: boolean;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  refreshToken?: string;
+  refreshToken: string | null;
 
-  @OneToMany(() => Order, (order) => order.user, { eager: false })
+  @OneToMany(() => Order, (order: Order) => order.user, { eager: false })
   orders: Order[];
 
-  @OneToMany(() => Review, (review) => review.user, { eager: false })
+  @OneToMany(() => Review, (review: Review) => review.user, { eager: false })
   reviews: Review[];
 
   @CreateDateColumn({ type: 'timestamp' })
