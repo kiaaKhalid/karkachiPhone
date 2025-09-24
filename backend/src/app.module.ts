@@ -16,6 +16,8 @@ import { OrderItem } from './orders/entities/order-item.entity';
 import { Category } from './categories/entities/category.entity';
 import { Brand } from './brands/entities/brand.entity';
 import { createPool } from 'mysql2/promise';
+import { AdminCategoriesModule } from './admin/categories/admin-categories.module';
+import { PublicCategoriesModule } from './public/categories/public-categories.module';
 
 async function ensureDatabaseExists() {
   const host = process.env.DB_HOST || 'localhost';
@@ -75,6 +77,8 @@ async function ensureDatabaseExists() {
     }),
     UsersModule,
     AuthModule,
+    AdminCategoriesModule,
+    PublicCategoriesModule,
     RateLimitModule.forRoot({
       trustProxy: true, // enable when behind reverse proxy / CDN in prod
       keyStrategy: 'ip', // global default

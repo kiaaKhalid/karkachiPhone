@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Patch,
   Req,
   Res,
   UseGuards,
@@ -20,6 +21,8 @@ import { Roles } from './roles.decorator';
 import { RolesGuard } from './roles.guard';
 import { Role } from '../common/enums/role.enum';
 import type { JwtRequestUser } from './jwt.strategy';
+import { SendResetCodeDto } from './dto/send-reset-code.dto';
+import { ForgetPasswordDto } from './dto/forget-password.dto';
 
 const REFRESH_COOKIE = 'rt';
 
@@ -53,6 +56,28 @@ export class AuthController {
         name: user.name,
       },
     };
+  }
+
+  // ===== Forgot Password =====
+  @HttpCode(HttpStatus.OK)
+  @Post('send-reset-code')
+  async sendResetCode(@Body() dto: SendResetCodeDto) {
+    await this.authService.sendResetCode(dto.email);
+    return { success: true, message: 'Reset code sent if user exists' };
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('verify-reset-code')
+  verifyResetCode(@Body() body: { email: string; code: string }) {
+    const valid = this.authService.verifyCode(body.email, body.code);
+    return { valid };
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Patch('forget-password')
+  async forgetPassword(@Body() dto: ForgetPasswordDto) {
+    await this.authService.resetPassword(dto);
+    return { success: true };
   }
 
   private readRefreshCookie(req: CookieRequest): string | null {
