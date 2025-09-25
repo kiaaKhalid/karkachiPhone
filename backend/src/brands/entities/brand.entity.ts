@@ -11,6 +11,8 @@ import { Product } from '../../products/entities/product.entity';
 
 @Entity('brands')
 @Index(['productCount'])
+@Index(['name'])
+@Index(['isActive'])
 export class Brand {
   @PrimaryGeneratedColumn('uuid')
   id: string;
