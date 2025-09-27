@@ -20,6 +20,12 @@ import { AdminCategoriesModule } from './admin/categories/admin-categories.modul
 import { PublicCategoriesModule } from './public/categories/public-categories.module';
 import { AdminBrandsModule } from './admin/brands/admin-brands.module';
 import { PublicBrandsModule } from './public/brands/public-brands.module';
+import { AdminProductsModule } from './admin/products/admin-products.module';
+import { PublicProductsModule } from './public/products/public-products.module';
+import { SuperAdminUsersModule } from './super-admin/users/super-admin-users.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { Wishlist } from './wishlist/entities/wishlist.entity';
+import { WishlistModule } from './wishlist/wishlist.module';
 
 async function ensureDatabaseExists() {
   const host = process.env.DB_HOST || 'localhost';
@@ -71,6 +77,7 @@ async function ensureDatabaseExists() {
             OrderItem,
             Category,
             Brand,
+            Wishlist,
           ],
           synchronize: process.env.NODE_ENV !== 'production',
           // logging: process.env.TYPEORM_LOGGING === 'true',
@@ -83,6 +90,11 @@ async function ensureDatabaseExists() {
     PublicCategoriesModule,
     AdminBrandsModule,
     PublicBrandsModule,
+    AdminProductsModule,
+    PublicProductsModule,
+    SuperAdminUsersModule,
+    ReviewsModule,
+    WishlistModule,
     RateLimitModule.forRoot({
       trustProxy: true, // enable when behind reverse proxy / CDN in prod
       keyStrategy: 'ip', // global default

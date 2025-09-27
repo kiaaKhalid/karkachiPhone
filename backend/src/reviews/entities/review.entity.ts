@@ -15,6 +15,7 @@ import { Min, Max } from 'class-validator';
 @Entity('reviews')
 @Index(['productId'])
 @Index(['userId'])
+@Index(['productId', 'isVerified'])
 export class Review {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -50,6 +51,6 @@ export class Review {
   @UpdateDateColumn({ type: 'timestamp' })
   updatedAt: Date;
 
-  @Column({ type: 'boolean', default: false })
-  isVerified: boolean;
+  @Column({ type: 'boolean', nullable: true, default: null })
+  isVerified: boolean | null;
 }

@@ -26,4 +26,19 @@ export class PublicCategoriesService {
       order: { sortOrder: 'ASC', createdAt: 'DESC' },
     });
   }
+
+  // O(1) simple select without pagination: id, name, image for active categories
+  async findAllBasic(): Promise<PublicRootCategory[]> {
+    return this.categoriesRepo.find({
+      select: {
+        id: true,
+        name: true,
+        image: true,
+      },
+      where: {
+        isActive: true,
+      },
+      order: { sortOrder: 'ASC', createdAt: 'DESC' },
+    });
+  }
 }

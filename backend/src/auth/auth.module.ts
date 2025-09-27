@@ -17,7 +17,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 
     JwtModule.register({
       secret: process.env.JWT_ACCESS_SECRET || 'change-me-access-secret',
-      signOptions: { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '1d' },
+      signOptions: { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '7d' },
     }),
 
     TypeOrmModule.forFeature([User]),

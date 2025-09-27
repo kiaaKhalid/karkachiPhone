@@ -73,7 +73,7 @@ export class AdminBrandsService {
     const patch: Partial<Brand> = {};
     if (dto.name !== undefined) {
       patch.name = dto.name;
-      patch.slug = slugify(dto.name);
+      patch.slug = dto.slug;
     }
     if (dto.logoUrl !== undefined) patch.logo = dto.logoUrl;
     if (dto.description !== undefined) patch.description = dto.description;

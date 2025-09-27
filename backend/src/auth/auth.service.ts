@@ -373,7 +373,7 @@ export class AuthService {
     };
     return this.jwtService.signAsync(payload, {
       secret: process.env.JWT_ACCESS_SECRET || 'change-me-access-secret',
-      expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
+      expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '7d',
     });
   }
 

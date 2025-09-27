@@ -24,13 +24,23 @@ import { Min, Max } from 'class-validator';
 @Index(['brandId'])
 @Index(['price'])
 @Index(['isNew', 'isBestSeller'])
+@Index(['isBestSeller'])
+@Index(['isActive'])
+@Index(['isFlashDeal'])
+@Index(['flashStartsAt'])
+@Index(['flashEndsAt'])
+@Index(['isPromotionalBanner'])
+@Index(['isPromotional'])
+@Index(['isProductphares'])
+@Index(['isProductFlash'])
+@Index(['isFeatured'])
+@Index(['rating'])
 export class Product {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({ length: 255 })
   name: string;
-
   @Column('text')
   description: string;
 
@@ -68,6 +78,35 @@ export class Product {
 
   @Column('int', { nullable: true })
   discount?: number;
+
+  @Column('boolean', { default: false })
+  isFlashDeal: boolean;
+
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  flashPrice?: number | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  flashStartsAt?: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  flashEndsAt?: Date | null;
+
+  @Column('int', { nullable: true })
+  flashStock?: number | null;
+
+  // ===== Promotional flags =====
+  @Column('boolean', { default: false })
+  isPromotionalBanner: boolean;
+
+  @Column('boolean', { default: false })
+  isPromotional: boolean;
+
+  // Note: keeping the exact naming requested by the user
+  @Column('boolean', { default: false })
+  isProductphares: boolean;
+
+  @Column('boolean', { default: false })
+  isProductFlash: boolean;
 
   @ManyToOne(() => Category, (category) => category.products, { eager: false })
   @JoinColumn({ name: 'categoryId' })

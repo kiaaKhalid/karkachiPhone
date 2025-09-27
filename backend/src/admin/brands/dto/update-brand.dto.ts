@@ -1,12 +1,24 @@
 import { PartialType } from '@nestjs/swagger';
 import { CreateBrandDto } from './create-brand.dto';
-import { IsOptional, IsString, IsUrl, Length, MaxLength, IsBoolean } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsUrl,
+  Length,
+  MaxLength,
+  IsBoolean,
+} from 'class-validator';
 
 export class UpdateBrandDto extends PartialType(CreateBrandDto) {
   @IsOptional()
   @IsString()
   @Length(2, 150)
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(2, 150)
+  slug?: string;
 
   @IsOptional()
   @IsString()
