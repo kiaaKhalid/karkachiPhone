@@ -3,6 +3,7 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
 import type { IncomingHttpHeaders } from 'http';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { RequestLoggingInterceptor } from './common/interceptors/request-logging.interceptor';
+import { BatchModule } from './batch/batch.module';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
@@ -106,6 +107,27 @@ async function ensureDatabaseExists() {
     CartsModule,
     OrdersModule,
     ProfileModule,
+    // In-memory batch processing (jobs with retries/backoff)
+    BatchModule.forRoot(
+      {
+        concurrency: 2,
+        defaultMaxAttempts: 5,
+        initialBackoffMs: 500,
+        maxBackoffMs: 30_000,
+        pollIntervalMs: 1_000,
+      },
+      {
+        // Example job handlers (replace with real implementations later)
+        'orders.export': (payload: { from?: string; to?: string }) => {
+          console.log('Running orders.export job with payload:', payload);
+          return Promise.resolve();
+        },
+        generic: () => {
+          console.log('Running generic job');
+          return Promise.resolve();
+        },
+      },
+    ),
     RateLimitModule.forRoot({
       trustProxy: true, // behind reverse proxy / CDN in prod
       // Prefer per-user limiting when JWT is present, fallback to IP if anonymous
