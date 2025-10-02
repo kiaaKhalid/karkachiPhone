@@ -86,7 +86,7 @@ export class OrdersController {
     @Param('id') id: string,
     @Body() dto: UpdateOrderStatusDto,
   ) {
-    const order = await this.service.updateStatus(id, dto.status);
+    const order = await this.service.updateStatus(id, dto.status, dto.version);
     return { success: true as const, message: 'OK', data: order };
   }
 }

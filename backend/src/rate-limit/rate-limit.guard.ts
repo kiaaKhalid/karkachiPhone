@@ -26,6 +26,7 @@ interface AuthenticatedRequest extends Request {
     id?: string | number;
     sub?: string | number;
     userId?: string | number;
+    role?: string;
   };
 }
 
@@ -49,7 +50,8 @@ export class RateLimitGuard implements CanActivate {
         context.getHandler(),
       ) || {};
 
-    const policy: RateLimitPolicy = {
+    // Resolve base policy from global options
+    let policy: RateLimitPolicy = {
       refillRatePerSec:
         routePolicyPartial.refillRatePerSec ?? this.options.refillRatePerSec,
       burstCapacity:
@@ -63,6 +65,38 @@ export class RateLimitGuard implements CanActivate {
 
     const route = req.route as { path?: string } | undefined;
     const routePath = route?.path ?? req.url;
+
+    // Whitelist handling (bypass RL)
+    if (
+      Array.isArray(this.options.whitelist) &&
+      this.options.whitelist.length
+    ) {
+      for (const rule of this.options.whitelist) {
+        if (typeof rule === 'string') {
+          if (routePath.startsWith(rule)) return true;
+        } else if (rule instanceof RegExp) {
+          if (rule.test(routePath)) return true;
+        }
+      }
+    }
+
+    // Per-role overrides
+    const role = req.user?.role;
+    if (typeof role === 'string' && this.options.rolePolicies) {
+      const override = this.options.rolePolicies[role];
+      if (override) {
+        policy = {
+          refillRatePerSec:
+            override.refillRatePerSec ?? policy.refillRatePerSec,
+          burstCapacity: override.burstCapacity ?? policy.burstCapacity,
+          cost: override.cost ?? policy.cost,
+          keyStrategy: override.keyStrategy ?? policy.keyStrategy,
+          prefix: override.prefix ?? policy.prefix,
+          idleExpireSeconds:
+            override.idleExpireSeconds ?? policy.idleExpireSeconds,
+        };
+      }
+    }
 
     const identity = this.getIdentity(req, policy.keyStrategy!);
     const key = `${policy.prefix}${policy.keyStrategy}:${identity}:${req.method}:${routePath}`;

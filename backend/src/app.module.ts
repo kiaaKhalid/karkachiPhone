@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import type { IncomingHttpHeaders } from 'http';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
-import { ExampleController } from './example/example.controller';
+import { RequestLoggingInterceptor } from './common/interceptors/request-logging.interceptor';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
@@ -106,15 +107,24 @@ async function ensureDatabaseExists() {
     OrdersModule,
     ProfileModule,
     RateLimitModule.forRoot({
-      trustProxy: true, // enable when behind reverse proxy / CDN in prod
-      keyStrategy: 'ip', // global default
-      refillRatePerSec: 5, // global default: 5 req/sec
-      burstCapacity: 100, // allow short bursts
+      trustProxy: true, // behind reverse proxy / CDN in prod
+      // Prefer per-user limiting when JWT is present, fallback to IP if anonymous
+      keyStrategy: 'user',
+      // Global defaults
+      refillRatePerSec: 5,
+      burstCapacity: 100,
       cost: 1,
       idleExpireSeconds: 3600,
-      // If using JWT and req.user exists, this is not needed; but you can customize:
+      // Whitelist routes (health checks, public assets/APIs)
+      whitelist: ['/health', '/api/public', /^\/public\//],
+      // Per-role overrides (higher quotas for admins)
+      rolePolicies: {
+        USER: { refillRatePerSec: 5, burstCapacity: 100 },
+        ADMIN: { refillRatePerSec: 10, burstCapacity: 200 },
+        SUPER_ADMIN: { refillRatePerSec: 15, burstCapacity: 300 },
+      },
+      // Fallback user id resolver (dev tools, no JWT)
       userIdResolver: (req: { headers: IncomingHttpHeaders; user?: any }) => {
-        // Example fallback: read user id from a header in dev
         const val = req.headers['x-user-id'];
         const hdr = Array.isArray(val) ? val[0] : val;
         if (typeof hdr === 'string') return hdr;
@@ -122,6 +132,11 @@ async function ensureDatabaseExists() {
       },
     }),
   ],
-  controllers: [ExampleController],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RequestLoggingInterceptor,
+    },
+  ],
 })
 export class AppModule {}

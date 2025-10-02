@@ -6,6 +6,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  VersionColumn,
 } from 'typeorm';
 import { CartItem } from './cart-item.entity';
 
@@ -32,4 +33,7 @@ export class Cart {
 
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  @VersionColumn()
+  version!: number;
 }

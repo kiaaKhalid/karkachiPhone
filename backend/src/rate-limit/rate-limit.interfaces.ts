@@ -14,6 +14,10 @@ export interface RateLimitGlobalOptions extends RateLimitPolicy {
   userIdResolver?: (req: any) => string | undefined;
   // Optionally override default trust of proxy headers. In production behind reverse proxy, set true
   trustProxy?: boolean;
+  // Optional whitelist of route matchers to bypass rate limit (e.g., '/health', /^\/public\//)
+  whitelist?: Array<string | RegExp>;
+  // Optional per-role overrides (role string -> partial policy)
+  rolePolicies?: Record<string, Partial<RateLimitPolicy>>;
 }
 
 export interface RateLimitResult {

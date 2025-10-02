@@ -4,9 +4,11 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import { OptimisticLockVersionMismatchError } from 'typeorm/error/OptimisticLockVersionMismatchError';
 import { Order, OrderStatus } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { Product } from '../products/entities/product.entity';
@@ -238,39 +240,63 @@ export class OrdersService {
     return prod;
   }
 
-  // Transaction: create order from cart items provided
+  // Transaction: create order from a single product with atomic stock decrement and retry
   async createDirect(userId: string, dto: CreateDirectOrderDto) {
     const prod = await this.assertProduct(dto.productId);
     if (dto.quantity <= 0)
       throw new BadRequestException('Quantity must be > 0');
 
-    return await this.dataSource.transaction(async (manager) => {
-      // build order
-      const order = manager.create(Order, {
-        userId,
-        total: Number(prod.price) * dto.quantity,
-        status: OrderStatus.PENDING,
-      });
-      await manager.save(order);
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await this.dataSource.transaction(async (manager) => {
+          // Atomic stock decrement to prevent overselling (no lock escalation needed)
+          const res = await manager
+            .createQueryBuilder()
+            .update(Product)
+            .set({ stock: () => 'stock - :qty' })
+            .where('id = :pid AND stock >= :qty', {
+              pid: prod.id,
+              qty: dto.quantity,
+            })
+            .execute();
+          if (!res.affected || res.affected === 0) {
+            throw new BadRequestException('Insufficient stock');
+          }
 
-      const item = manager.create(OrderItem, {
-        orderId: order.id,
-        productId: prod.id,
-        quantity: dto.quantity,
-        unitPrice: Number(prod.price),
-        name: prod.name,
-        image: prod.image,
-        totalPrice: Number(prod.price) * dto.quantity,
-      } as any);
-      await manager.save(item);
+          // build order
+          const order = manager.create(Order, {
+            userId,
+            total: Number(prod.price) * dto.quantity,
+            status: OrderStatus.PENDING,
+          });
+          await manager.save(order);
 
-      // reload with items
-      const withItems = await manager.findOne(Order, {
-        where: { id: order.id },
-        relations: ['items'],
-      });
-      return withItems!;
-    });
+          const item = manager.create(OrderItem, {
+            orderId: order.id,
+            productId: prod.id,
+            quantity: dto.quantity,
+            unitPrice: Number(prod.price),
+            name: prod.name,
+            image: prod.image,
+            totalPrice: Number(prod.price) * dto.quantity,
+          } as any);
+          await manager.save(item);
+
+          const withItems = await manager.findOne(Order, {
+            where: { id: order.id },
+            relations: ['items'],
+          });
+          return withItems!;
+        });
+      } catch (err) {
+        if (attempt === maxRetries) throw err;
+        // small backoff
+        await new Promise((r) => setTimeout(r, 25 * attempt));
+      }
+    }
+    // Should never reach
+    throw new BadRequestException('Failed to create order');
   }
 
   // Convert existing cart (items already priced in cart) into an order (atomic)
@@ -285,45 +311,79 @@ export class OrdersService {
       throw new BadRequestException('Cart is empty');
     }
 
-    return await this.dataSource.transaction(async (manager) => {
-      const order = manager.create(Order, {
-        userId,
-        total: Number(cart.total),
-        status: OrderStatus.PENDING,
-      });
-      await manager.save(order);
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await this.dataSource.transaction(async (manager) => {
+          const order = manager.create(Order, {
+            userId,
+            total: Number(cart.total),
+            status: OrderStatus.PENDING,
+          });
+          await manager.save(order);
 
-      for (const it of cart.items) {
-        const prod = await manager.findOne(Product, {
-          where: { id: it.productId },
+          for (const it of cart.items) {
+            const prod = await manager.findOne(Product, {
+              where: { id: it.productId },
+            });
+            if (!prod) throw new NotFoundException('Product not found in cart');
+
+            // Atomic decrement per item
+            const res = await manager
+              .createQueryBuilder()
+              .update(Product)
+              .set({ stock: () => 'stock - :qty' })
+              .where('id = :pid AND stock >= :qty', {
+                pid: it.productId,
+                qty: it.quantity,
+              })
+              .execute();
+            if (!res.affected || res.affected === 0) {
+              throw new BadRequestException(
+                `Insufficient stock for product ${it.productId}`,
+              );
+            }
+
+            const item = manager.create(OrderItem, {
+              orderId: order.id,
+              productId: it.productId,
+              quantity: it.quantity,
+              unitPrice: Number(it.price),
+              name: prod.name,
+              image: prod.image,
+              totalPrice: Number(it.price) * it.quantity,
+            } as any);
+            await manager.save(item);
+          }
+
+          const withItems = await manager.findOne(Order, {
+            where: { id: order.id },
+            relations: ['items'],
+          });
+          return withItems!;
         });
-        if (!prod) throw new NotFoundException('Product not found in cart');
-        const item = manager.create(OrderItem, {
-          orderId: order.id,
-          productId: it.productId,
-          quantity: it.quantity,
-          unitPrice: Number(it.price),
-          name: prod.name,
-          image: prod.image,
-          totalPrice: Number(it.price) * it.quantity,
-        } as any);
-        await manager.save(item);
+      } catch (err) {
+        if (attempt === maxRetries) throw err;
+        await new Promise((r) => setTimeout(r, 25 * attempt));
       }
-
-      const withItems = await manager.findOne(Order, {
-        where: { id: order.id },
-        relations: ['items'],
-      });
-      return withItems!;
-    });
+    }
+    throw new BadRequestException('Failed to create order from cart');
   }
 
-  async updateStatus(id: string, status: OrderStatus) {
+  async updateStatus(id: string, status: OrderStatus, version: number) {
     const order = await this.orderRepo.findOne({ where: { id } });
     if (!order) throw new NotFoundException('Order not found');
-    order.status = status;
-    await this.orderRepo.save(order);
-    return order;
+    try {
+      // Use optimistic locking by saving with expected version
+      const partial = this.orderRepo.create({ id, version, status });
+      await this.orderRepo.save(partial);
+      return await this.orderRepo.findOne({ where: { id } });
+    } catch (e) {
+      if (e instanceof OptimisticLockVersionMismatchError) {
+        throw new ConflictException('Order was modified by another user');
+      }
+      throw e;
+    }
   }
 
   // ===== Admin Dashboard: stats (O(1) using aggregate queries)

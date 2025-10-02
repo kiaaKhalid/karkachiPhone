@@ -5,9 +5,16 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  IsInt,
+  Min,
 } from 'class-validator';
 
 export class UpdateProfileDto {
+  // Required optimistic locking version from the client
+  @IsInt()
+  @Min(0)
+  version!: number;
+
   @IsOptional()
   @IsString()
   @MinLength(2)

@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   OneToMany,
   Index,
+  VersionColumn,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { Order } from '../../orders/entities/order.entity';
@@ -66,4 +67,7 @@ export class User {
 
   @UpdateDateColumn({ type: 'timestamp' })
   updatedAt: Date;
+
+  @VersionColumn()
+  version: number;
 }

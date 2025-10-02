@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { Order } from '../orders/entities/order.entity';
 import { Wishlist } from '../wishlist/entities/wishlist.entity';
 import { Review } from '../reviews/entities/review.entity';
+import { OptimisticLockVersionMismatchError } from 'typeorm/error/OptimisticLockVersionMismatchError';
 
 @Injectable()
 export class ProfileService {
@@ -35,6 +37,7 @@ export class ProfileService {
         email: true,
         avatarUrl: true,
         createdAt: true,
+        version: true,
       },
     });
     if (!user) throw new NotFoundException('User not found');
@@ -44,6 +47,7 @@ export class ProfileService {
       email: user.email,
       avatarUrl: user.avatarUrl ?? null,
       createdAt: user.createdAt,
+      version: user.version,
     } as const;
   }
 
@@ -63,7 +67,26 @@ export class ProfileService {
       dto.phone = dto.phone.trim().replace(/\s+/g, ' ');
     }
 
-    await this.users.update({ id: userId }, { ...dto });
+    // Optimistic locking: save with provided version. If version mismatch -> conflict.
+    const { version, ...fields } = dto as unknown as {
+      version: number;
+      [k: string]: unknown;
+    };
+    try {
+      const partial = this.users.create({
+        id: userId,
+        version,
+        ...(fields as object),
+      });
+      await this.users.save(partial);
+    } catch (e) {
+      if (e instanceof OptimisticLockVersionMismatchError) {
+        throw new ConflictException(
+          'Conflict: resource modified by another user',
+        );
+      }
+      throw e;
+    }
     return this.getInfo(userId);
   }
 
@@ -114,12 +137,12 @@ export class ProfileService {
     const totalOrders = Number(ordersAgg?.cnt ?? 0);
     const totalSpent = Number(ordersAgg?.sum ?? 0);
 
-    // Simple profile completion scoring: 5 fields equally weighted
-    const fields = [user.name, user.phone, user.email, user.avatarUrl];
-    const filled = fields.filter(
+    // Simple profile completion scoring: 4 fields equally weighted
+    const fieldsArr = [user.name, user.phone, user.email, user.avatarUrl];
+    const filled = fieldsArr.filter(
       (v) => v && String(v).trim().length > 0,
     ).length;
-    const profileCompletion = Math.round((filled / fields.length) * 100);
+    const profileCompletion = Math.round((filled / fieldsArr.length) * 100);
 
     return {
       accountStatus: user.isActive ? 'active' : 'suspended',

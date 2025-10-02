@@ -10,6 +10,7 @@ import {
   ManyToMany,
   JoinTable,
   Index,
+  VersionColumn,
 } from 'typeorm';
 import { Category } from '../../categories/entities/category.entity';
 import { Brand } from '../../brands/entities/brand.entity';
@@ -148,4 +149,7 @@ export class Product {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @VersionColumn()
+  version: number;
 }
