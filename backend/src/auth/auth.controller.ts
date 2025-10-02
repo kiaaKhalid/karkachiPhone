@@ -120,31 +120,72 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const rt = this.readRefreshCookie(req);
-    if (!rt) return { accessToken: null };
+    if (!rt) return { accessToken: null, user: null };
     const resTokens = await this.authService.refreshByToken(rt);
-    if (!resTokens) return { accessToken: null };
+    if (!resTokens) return { accessToken: null, user: null };
     const { accessToken, refreshToken } = resTokens;
+    const u = (resTokens.user ?? {}) as {
+      id?: unknown;
+      name?: unknown;
+      email?: unknown;
+      role?: unknown;
+      avatarUrl?: unknown;
+    };
+    const safeUser = {
+      id: typeof u.id === 'string' ? u.id : '',
+      name: typeof u.name === 'string' ? u.name : undefined,
+      email: typeof u.email === 'string' ? u.email : '',
+      role: (u.role as Role) ?? Role.USER,
+      avatar:
+        typeof u.avatarUrl === 'string' && u.avatarUrl
+          ? u.avatarUrl
+          : 'https://i.ibb.co/C3R4f9gT/user.png',
+    };
     this.setRefreshCookie(res, refreshToken);
-    return { accessToken };
+    return {
+      accessToken,
+      user: safeUser,
+    };
   }
 
   @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.USER, Role.LIVREUR, Role.ADMIN, Role.SUPER_ADMIN)
   @Post('logout')
   async logout(
-    @Req() req: CookieRequest,
+    @Req()
+    req: CookieRequest &
+      Request & { user?: { id?: string; email?: string; role?: Role } },
     @Res({ passthrough: true }) res: Response,
   ) {
-    const rt = this.readRefreshCookie(req);
-    if (rt) await this.authService.logoutByToken(rt);
+    res.clearCookie(REFRESH_COOKIE, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/', // IMPORTANT
+    });
+    const userId = req.user?.id ?? 'unknown';
+    const ip = (req.headers['x-forwarded-for'] as string) || req.ip;
+    const ua = req.headers['user-agent'] || 'unknown';
+    console.info(`[logout] user=${userId} ip=${ip} ua=${ua}`);
+
+    if (userId !== 'unknown') {
+      await this.authService.logout(userId);
+    } else {
+      const rt = this.readRefreshCookie(req as CookieRequest);
+      if (rt) await this.authService.logoutByToken(rt);
+    }
+
     res.clearCookie(REFRESH_COOKIE, this.cookieOptions());
-    return { success: true };
+
+    return { success: true, message: 'Déconnexion réussie' };
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
   @Get('me')
   me(@Req() req: Request & { user: JwtRequestUser }) {
-    return req.user; // populated by JwtAuthGuard
+    return req.user;
   }
 
   // ===== Google OAuth =====
@@ -153,6 +194,7 @@ export class AuthController {
   async googleAuth(): Promise<void> {
     // Handled by Passport (redirect to Google)
   }
+
   @UseGuards(AuthGuard('google'))
   @Get('google/callback')
   async googleCallback(
@@ -187,36 +229,23 @@ export class AuthController {
         );
       }
 
-      const { accessToken, refreshToken, user } =
-        await this.authService.loginWithGoogle({
-          email,
-          name,
-          avatarUrl,
-          emailVerified,
-        });
+      const { refreshToken } = await this.authService.loginWithGoogle({
+        email,
+        name,
+        avatarUrl,
+        emailVerified,
+      });
 
       // Stocker le refresh token
       this.setRefreshCookie(res, refreshToken);
 
-      // Rediriger vers le frontend avec les tokens dans l'URL
-      const frontendCallbackUrl = new URL(
-        'http://localhost:3000/auth/google/callback',
-      );
-      frontendCallbackUrl.searchParams.set('accessToken', accessToken);
-      frontendCallbackUrl.searchParams.set(
-        'user',
-        JSON.stringify({
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          avatar: user.avatarUrl,
-        }),
-      );
-
-      return res.redirect(frontendCallbackUrl.toString());
-    } catch (error) {
+      // Rediriger SANS params sensibles
+      return res.redirect('http://localhost:3000/auth/google/callback');
+    } catch (error: unknown) {
       console.error('Google callback error:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message);
+      }
       return res.redirect(
         'http://localhost:3000/auth/login?error=google_auth_error',
       );
@@ -228,7 +257,7 @@ export class AuthController {
     return {
       httpOnly: true,
       secure: isProd,
-      sameSite: 'lax' as const,
+      sameSite: 'strict' as const,
       path: '/api/auth',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     };

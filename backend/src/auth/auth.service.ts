@@ -143,8 +143,15 @@ export class AuthService {
         subject: 'Code de vérification - KARKACHI PHONE',
         html,
       });
-    } catch (err) {
-      this.logger.error('Failed to send reset code email', err as Error);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        this.logger.error('Failed to send reset code email', error);
+      } else {
+        this.logger.error(
+          'Failed to send reset code email',
+          new Error(String(error)),
+        );
+      }
       throw new BadRequestException('Failed to send email');
     }
   }
@@ -294,7 +301,7 @@ export class AuthService {
   async refresh(
     userId: string,
     providedRt: string,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  ): Promise<{ accessToken: string; refreshToken: string; user: User }> {
     const user = await this.usersService.findById(userId);
     if (!user || !user.refreshToken)
       throw new UnauthorizedException('No session');
@@ -305,12 +312,12 @@ export class AuthService {
     const newRt = await this.signRefreshToken(user);
     const hashedRt = await bcrypt.hash(newRt, 10);
     await this.usersService.setRefreshToken(user.id, hashedRt);
-    return { accessToken, refreshToken: newRt };
+    return { accessToken, refreshToken: newRt, user };
   }
 
   async refreshByToken(
     providedRt: string,
-  ): Promise<{ accessToken: string; refreshToken: string } | null> {
+  ): Promise<{ accessToken: string; refreshToken: string; user: User } | null> {
     try {
       const decoded = await this.jwtService.verifyAsync<{ sub: string }>(
         providedRt,
@@ -327,6 +334,7 @@ export class AuthService {
   }
 
   async logout(userId: string): Promise<void> {
+    // Invalidate refresh token (removes server-side session)
     await this.usersService.setRefreshToken(userId, null);
   }
 
@@ -353,7 +361,8 @@ export class AuthService {
     name?: string;
     avatarUrl?: string | null;
     emailVerified?: boolean;
-  }): Promise<{ accessToken: string; refreshToken: string; user: User }> {
+  }): Promise<{ refreshToken: string; user: User }> {
+    // Suppression de accessToken (géré par refresh)
     const user = await this.usersService.findOrCreateOAuthUser({
       provider: AuthProvider.GOOGLE,
       email: profile.email,
@@ -361,8 +370,8 @@ export class AuthService {
       avatarUrl: profile.avatarUrl,
       emailVerified: profile.emailVerified,
     });
-    const { accessToken, refreshToken } = await this.login(user);
-    return { accessToken, refreshToken, user };
+    const { refreshToken } = await this.login(user); // Seulement refresh ici
+    return { refreshToken, user };
   }
 
   private async signAccessToken(user: User): Promise<string> {

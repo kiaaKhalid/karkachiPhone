@@ -55,15 +55,6 @@ export class PublicProductsController {
     );
   }
 
-  @ApiOperation({ summary: 'Détail produit par ID (public)' })
-  @Get(':id')
-  async getById(
-    @Param() { id }: ProductIdParamDto,
-  ): Promise<{ success: true; message: string; data: ProductDetailDto }> {
-    const data = await this.service.getPublicById(id);
-    return { success: true as const, message: 'OK', data };
-  }
-
   @ApiOperation({ summary: 'Recherche rapide produits (projection minimale)' })
   @Get('search')
   async search(@Query() dto: SearchProductsDto): Promise<PublicMany> {
@@ -117,5 +108,14 @@ export class PublicProductsController {
     const { page, limit, ...filters } = q as unknown as PublicPaginationDto &
       PublicProductsFilterDto;
     return await this.service.list({ page, limit }, { ...filters, categoryId });
+  }
+
+  @ApiOperation({ summary: 'Détail produit par ID (public)' })
+  @Get(':id')
+  async getById(
+    @Param() { id }: ProductIdParamDto,
+  ): Promise<{ success: true; message: string; data: ProductDetailDto }> {
+    const data = await this.service.getPublicById(id);
+    return { success: true as const, message: 'OK', data };
   }
 }

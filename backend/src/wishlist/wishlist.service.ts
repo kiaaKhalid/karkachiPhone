@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError } from 'typeorm';
 import { Wishlist } from './entities/wishlist.entity';
+import { WishlistPaginationDto } from './dto/pagination.dto';
 
 @Injectable()
 export class WishlistService {
@@ -60,34 +61,47 @@ export class WishlistService {
     return { success: true as const, data: { present: exists } };
   }
 
-  // List products in user's wishlist with minimal fields from product
-  async list(userId: string) {
-    const qb = this.repo
+  // List products in user's wishlist with minimal fields from product (paginated)
+  async list(userId: string, { page = 1, limit = 25 }: WishlistPaginationDto) {
+    const take = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * take;
+
+    const base = this.repo
       .createQueryBuilder('w')
       .innerJoin('w.product', 'p')
-      .select([
-        'p.id',
-        'p.name',
-        'p.description',
-        'p.image',
-        'p.price',
-        'p.originalPrice',
-        'p.stock',
-        'p.isActive',
-      ])
-      .where('w.userId = :uid', { uid: userId })
-      .orderBy('w.createdAt', 'DESC');
+      .where('w.userId = :uid', { uid: userId });
 
-    const rows = await qb.getRawMany<{
-      p_id: string;
-      p_name: string;
-      p_description: string;
-      p_image: string;
-      p_price: string;
-      p_originalPrice?: string | null;
-      p_stock: string;
-      p_isActive: number;
-    }>();
+    const totalRow = await base
+      .clone()
+      .select('COUNT(*)', 'cnt')
+      .getRawOne<{ cnt: string }>();
+    const total = Number(totalRow?.cnt ?? 0);
+
+    const rows = await base
+      .clone()
+      .select([
+        'p.id AS p_id',
+        'p.name AS p_name',
+        'p.description AS p_description',
+        'p.image AS p_image',
+        'p.price AS p_price',
+        'p.originalPrice AS p_originalPrice',
+        'p.stock AS p_stock',
+        'p.isActive AS p_isActive',
+      ])
+      .orderBy('w.createdAt', 'DESC')
+      .take(take)
+      .skip(skip)
+      .getRawMany<{
+        p_id: string;
+        p_name: string;
+        p_description: string;
+        p_image: string;
+        p_price: string;
+        p_originalPrice?: string | null;
+        p_stock: string;
+        p_isActive: number;
+      }>();
 
     const items = rows.map((r) => ({
       id: r.p_id,
@@ -101,6 +115,15 @@ export class WishlistService {
       isAvailable: Number(r.p_stock) > 0 && r.p_isActive === 1,
     }));
 
-    return { success: true as const, data: items };
+    return {
+      success: true as const,
+      data: { items, total, page: Math.max(page, 1), limit: take },
+    };
+  }
+
+  // O(1): clear all wishlist items for a user
+  async clear(userId: string) {
+    await this.repo.delete({ userId });
+    return { success: true as const };
   }
 }

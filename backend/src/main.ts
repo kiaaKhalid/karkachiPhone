@@ -3,6 +3,8 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import type { RequestHandler } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -41,6 +43,17 @@ async function bootstrap() {
     preflightContinue: false,
     optionsSuccessStatus: 204,
   });
+
+  // Security headers (XSS, Clickjacking, MIME sniffing)
+  const helmetOptions = {
+    contentSecurityPolicy:
+      process.env.NODE_ENV === 'production' ? undefined : false,
+    crossOriginEmbedderPolicy: false,
+  } as const;
+  // Cast Helmet factory to a typed function to satisfy eslint no-unsafe rules in environments without Helmet TS types
+  const helmetFactory = helmet as unknown as (opts?: unknown) => RequestHandler;
+  const helmetMiddleware = helmetFactory(helmetOptions);
+  app.use(helmetMiddleware);
 
   // Validation for DTOs
   app.useGlobalPipes(

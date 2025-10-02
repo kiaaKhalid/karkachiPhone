@@ -15,6 +15,8 @@ import { Order } from './orders/entities/order.entity';
 import { OrderItem } from './orders/entities/order-item.entity';
 import { Category } from './categories/entities/category.entity';
 import { Brand } from './brands/entities/brand.entity';
+import { Cart } from './carts/entities/cart.entity';
+import { CartItem } from './carts/entities/cart-item.entity';
 import { createPool } from 'mysql2/promise';
 import { AdminCategoriesModule } from './admin/categories/admin-categories.module';
 import { PublicCategoriesModule } from './public/categories/public-categories.module';
@@ -26,6 +28,9 @@ import { SuperAdminUsersModule } from './super-admin/users/super-admin-users.mod
 import { ReviewsModule } from './reviews/reviews.module';
 import { Wishlist } from './wishlist/entities/wishlist.entity';
 import { WishlistModule } from './wishlist/wishlist.module';
+import { CartsModule } from './carts/carts.module';
+import { OrdersModule } from './orders/orders.module';
+import { ProfileModule } from './profile/profile.module';
 
 async function ensureDatabaseExists() {
   const host = process.env.DB_HOST || 'localhost';
@@ -78,6 +83,8 @@ async function ensureDatabaseExists() {
             Category,
             Brand,
             Wishlist,
+            Cart,
+            CartItem,
           ],
           synchronize: process.env.NODE_ENV !== 'production',
           // logging: process.env.TYPEORM_LOGGING === 'true',
@@ -95,6 +102,9 @@ async function ensureDatabaseExists() {
     SuperAdminUsersModule,
     ReviewsModule,
     WishlistModule,
+    CartsModule,
+    OrdersModule,
+    ProfileModule,
     RateLimitModule.forRoot({
       trustProxy: true, // enable when behind reverse proxy / CDN in prod
       keyStrategy: 'ip', // global default

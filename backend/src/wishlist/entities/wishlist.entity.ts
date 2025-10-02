@@ -4,6 +4,7 @@ import {
   Column,
   Index,
   CreateDateColumn,
+  UpdateDateColumn,
   Unique,
   ManyToOne,
   JoinColumn,
@@ -30,4 +31,7 @@ export class Wishlist {
 
   @CreateDateColumn()
   createdAt!: Date;
+
+  @UpdateDateColumn()
+  updatedAt!: Date;
 }

@@ -73,14 +73,22 @@ export class PublicProductsService {
     const stock = Number(first.p_stock);
 
     const imagesSet = new Set<string>();
-    const specs: { key: string; value: string }[] = [];
+    const specsMap = new Map<string, Set<string>>();
 
     for (const r of rows) {
       const imgUrl = r.img_url;
       if (imgUrl) imagesSet.add(imgUrl);
       const k = r.sp_key;
       const v = r.sp_value;
-      if (k && v) specs.push({ key: k, value: v });
+      if (k && v) {
+        if (!specsMap.has(k)) specsMap.set(k, new Set<string>());
+        specsMap.get(k)!.add(v);
+      }
+    }
+
+    const specs: { key: string; value: string }[] = [];
+    for (const [key, values] of specsMap.entries()) {
+      for (const value of values) specs.push({ key, value });
     }
 
     const dto: ProductDetailDto = {

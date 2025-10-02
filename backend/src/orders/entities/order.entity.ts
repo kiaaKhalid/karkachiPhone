@@ -37,28 +37,6 @@ export class Order {
   })
   status: OrderStatus;
 
-  // Adresse de livraison normalisée
-  @Column({ length: 255 })
-  shippingName: string;
-
-  @Column({ length: 500 })
-  shippingAddress: string;
-
-  @Column({ length: 100 })
-  shippingCity: string;
-
-  @Column({ length: 20 })
-  shippingPostalCode: string;
-
-  @Column({ length: 100 })
-  shippingCountry: string;
-
-  @Column({ length: 20, nullable: true })
-  shippingPhone?: string;
-
-  @Column({ length: 100, nullable: true })
-  shippingEmail?: string;
-
   @ManyToOne(() => User, (user) => user.orders, { eager: false })
   @JoinColumn({ name: 'userId' })
   user: User;

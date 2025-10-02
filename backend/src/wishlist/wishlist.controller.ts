@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -14,9 +15,14 @@ import { AddWishlistDto } from './dto/add-wishlist.dto';
 import { RemoveWishlistDto } from './dto/remove-wishlist.dto';
 import { WishlistProductParamDto } from './dto/product-param.dto';
 import { WishlistService } from './wishlist.service';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+import { Role } from '../common/enums/role.enum';
+import { WishlistPaginationDto } from './dto/pagination.dto';
 
 @ApiTags('Person - Wishlist')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.USER, Role.ADMIN, Role.SUPER_ADMIN, Role.LIVREUR)
 @Controller('api/person')
 export class WishlistController {
   constructor(private readonly service: WishlistService) {}
@@ -45,11 +51,14 @@ export class WishlistController {
     };
   }
 
-  @ApiOperation({ summary: 'Lister les produits de ma wishlist' })
+  @ApiOperation({ summary: 'Lister les produits de ma wishlist (pagination)' })
   @Get('product/wishlist')
-  async list(@CurrentUser('id') userId: string) {
-    const data = await this.service.list(userId);
-    return { success: true as const, message: 'OK', data: data.data };
+  async list(
+    @CurrentUser('id') userId: string,
+    @Query() dto: WishlistPaginationDto,
+  ) {
+    const { data } = await this.service.list(userId, dto);
+    return { success: true as const, message: 'OK', data };
   }
 
   @ApiOperation({ summary: 'Vérifier si un produit est dans ma wishlist' })
@@ -60,5 +69,12 @@ export class WishlistController {
   ) {
     const { data } = await this.service.has(userId, id);
     return { success: true as const, message: 'OK', data };
+  }
+
+  @ApiOperation({ summary: 'Vider ma wishlist (supprimer tous les éléments)' })
+  @Delete('wishlist/clear')
+  async clear(@CurrentUser('id') userId: string) {
+    await this.service.clear(userId);
+    return { success: true as const, message: 'Cleared', data: null };
   }
 }

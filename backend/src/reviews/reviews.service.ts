@@ -92,33 +92,59 @@ export class ReviewsService {
       `Review ${verified ? 'verified' : 'not-verified'}: ${id} -> product stats recalculated for ${pid}`,
     );
   }
-
   // Admin: list all reviews with pagination (O(1) query)
   async adminList({ page = 1, limit = 25 }: ReviewsPaginationDto) {
     const take = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * take;
 
-    const [items, total] = await this.reviews
-      .createQueryBuilder('r')
+    const base = this.reviews.createQueryBuilder('r').leftJoin('r.user', 'u');
+    const totalRow = await base
+      .clone()
+      .select('COUNT(*)', 'cnt')
+      .getRawOne<{ cnt: string }>();
+    const total = Number(totalRow?.cnt ?? 0);
+
+    const rows = await base
+      .clone()
       .select([
-        'r.id',
-        'r.productId',
-        'r.userId',
-        'r.rating',
-        'r.comment',
-        'r.isVerified',
-        'r.createdAt',
+        'r.id AS r_id',
+        'r.userId AS r_userId',
+        'r.productId AS r_productId',
+        'r.rating AS r_rating',
+        'r.comment AS r_comment',
+        'r.isVerified AS r_isVerified',
+        'r.createdAt AS r_createdAt',
+        'u.name AS u_name',
+        'u.avatarUrl AS u_avatarUrl',
       ])
       .orderBy('r.createdAt', 'DESC')
       .take(take)
       .skip(skip)
-      .getManyAndCount();
+      .getRawMany<{
+        r_id: string;
+        r_userId: string;
+        r_productId: string;
+        r_rating: number;
+        r_comment: string;
+        r_isVerified: 0 | 1 | null;
+        r_createdAt: Date;
+        u_name: string | null;
+        u_avatarUrl: string | null;
+      }>();
 
-    return {
-      items,
-      total,
-      limit: take,
-    } as const;
+    const items = rows.map((r) => ({
+      id: r.r_id,
+      userId: r.r_userId,
+      productId: r.r_productId,
+      rating: r.r_rating,
+      comment: r.r_comment,
+      isVerified: r.r_isVerified,
+      createdAt: r.r_createdAt,
+      userName: r.u_name ?? null,
+      userImage: r.u_avatarUrl ?? null,
+    }));
+
+    return { items, total, page: Math.max(page, 1), limit: take } as const;
   }
 
   // Public: list verified reviews by productId
@@ -132,28 +158,60 @@ export class ReviewsService {
     const take = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * take;
 
-    const qb = this.reviews
+    // Base builder (no pagination) for count
+    const base = this.reviews
       .createQueryBuilder('r')
-      .select(['r.id', 'r.userId', 'r.rating', 'r.comment', 'r.createdAt'])
-      .where('r.productId = :pid', { pid: productId })
-      .orderBy('r.createdAt', 'DESC')
-      .take(take)
-      .skip(skip);
+      .leftJoin('r.user', 'u')
+      .where('r.productId = :pid', { pid: productId });
 
     if (userId) {
-      qb.andWhere(
+      base.andWhere(
         '(r.isVerified = 1 OR (r.userId = :uid AND (r.isVerified = 1 OR r.isVerified IS NULL)))',
         { uid: userId },
       );
     } else {
-      qb.andWhere('r.isVerified = 1');
+      base.andWhere('r.isVerified = 1');
     }
 
-    const [rawItems, total] = await qb.getManyAndCount();
+    const totalRow = await base
+      .clone()
+      .select('COUNT(*)', 'cnt')
+      .getRawOne<{ cnt: string }>();
+    const total = Number(totalRow?.cnt ?? 0);
 
-    const items = rawItems.map((r) => ({
-      ...r,
-      isMine: userId ? r.userId === userId : false,
+    const rows = await base
+      .clone()
+      .select([
+        'r.id AS r_id',
+        'r.userId AS r_userId',
+        'r.rating AS r_rating',
+        'r.comment AS r_comment',
+        'r.createdAt AS r_createdAt',
+        'u.name AS u_name',
+        'u.avatarUrl AS u_avatarUrl',
+      ])
+      .orderBy('r.createdAt', 'DESC')
+      .take(take)
+      .skip(skip)
+      .getRawMany<{
+        r_id: string;
+        r_userId: string;
+        r_rating: number;
+        r_comment: string;
+        r_createdAt: Date;
+        u_name: string | null;
+        u_avatarUrl: string | null;
+      }>();
+
+    const items = rows.map((r) => ({
+      id: r.r_id,
+      userId: r.r_userId,
+      rating: r.r_rating,
+      comment: r.r_comment,
+      createdAt: r.r_createdAt,
+      userName: r.u_name ?? null,
+      userImage: r.u_avatarUrl ?? null,
+      isMine: userId ? r.r_userId === userId : false,
     }));
 
     return {
