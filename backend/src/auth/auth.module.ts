@@ -16,7 +16,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     PassportModule,
 
     JwtModule.register({
-      secret: process.env.JWT_ACCESS_SECRET || 'change-me-access-secret',
+      secret: process.env.JWT_SECRET || 'change-me-access-secret',
       signOptions: { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '7d' },
     }),
 
@@ -27,19 +27,21 @@ import { ThrottlerModule } from '@nestjs/throttler';
 
     MailerModule.forRootAsync({
       useFactory: () => ({
+        // Gmail SMTP defaults; can be overridden via env variables
         transport: {
-          host: process.env.SMTP_HOST || 'localhost',
-          port: Number(process.env.SMTP_PORT) || 1025,
-          secure: false,
-          auth: process.env.SMTP_USER
-            ? {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS,
-              }
-            : undefined,
+          host: process.env.SMTP_HOST || 'smtp.gmail.com',
+          port: Number(process.env.SMTP_PORT) || 587,
+          secure: false, // STARTTLS on 587
+          requireTLS: true,
+          auth: {
+            user:
+              process.env.SMTP_USER || process.env.MAIL_FROM || 'you@gmail.com',
+            pass: process.env.SMTP_PASS || '',
+          },
         },
         defaults: {
-          from: process.env.MAIL_FROM || 'no-reply@karkachiphone.ma',
+          from:
+            process.env.MAIL_FROM || process.env.SMTP_USER || 'you@gmail.com',
         },
       }),
     }),
