@@ -12,16 +12,13 @@ import { useWishlistApi } from "@/hooks/use-wishlist-api"
 import { useAuth } from "@/hooks/use-auth"
 import LoginPopup from "@/components/login-popup"
 
-interface TopWishlistProductDto {
-  id: number
+interface TopOrderedProductDto {
+  id: string
   name: string
-  description: string
   price: number
+  image: string
   rating: number
-  reviewCount: number
-  brand: string
-  imageUrl: string
-  wishCount: number
+  reviewsCount: number
 }
 
 function ProductSkeleton() {
@@ -56,42 +53,43 @@ function ProductSkeleton() {
 
 export default function ProductsForYouSection() {
   const { checkWishlistStatus, toggleWishlist, isInWishlist, isLoading: isWishlistLoading } = useWishlistApi()
-  const [products, setProducts] = useState<TopWishlistProductDto[]>([])
+  const [products, setProducts] = useState<TopOrderedProductDto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const { isAuthenticated } = useAuth()
   const [showLoginPopup, setShowLoginPopup] = useState(false)
-  const [pendingWishlistProductId, setPendingWishlistProductId] = useState<number | null>(null)
+  const [pendingWishlistProductId, setPendingWishlistProductId] = useState<string | null>(null)
+  const urlBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
 
   useEffect(() => {
-    const fetchTopWishlistProducts = async () => {
+    const fetchTopOrderedProducts = async () => {
       try {
         setLoading(true)
         setError(false)
-        const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/wishlist/top-products")
+        const response = await fetch(`${urlBase}/public/products/top-ordered`)
         if (!response.ok) {
           throw new Error("Échec du chargement des produits")
         }
-        const data: TopWishlistProductDto[] = await response.json()
-        setProducts(data)
+        const apiResponse = await response.json()
+        setProducts(apiResponse.data || [])
 
         if (isAuthenticated) {
-          data.forEach((product) => {
+          apiResponse.data.forEach((product: TopOrderedProductDto) => {
             checkWishlistStatus(product.id)
           })
         }
       } catch (err) {
-        console.error("Erreur lors du chargement des produits les plus souhaités :", err)
+        console.error("Erreur lors du chargement des produits les plus commandés :", err)
         setError(true)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchTopWishlistProducts()
+    fetchTopOrderedProducts()
   }, [isAuthenticated, checkWishlistStatus])
 
-  const handleWishlistClick = async (product: TopWishlistProductDto) => {
+  const handleWishlistClick = async (product: TopOrderedProductDto) => {
     if (!isAuthenticated) {
       setPendingWishlistProductId(product.id)
       setShowLoginPopup(true)
@@ -116,7 +114,7 @@ export default function ProductsForYouSection() {
           <div className="text-left">
             <Badge className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-4 py-2 text-sm font-medium mb-4 shadow-sm">
               <Sparkles className="w-4 h-4 mr-1" />
-              Produits les plus souhaités
+              Produits les plus commandés
             </Badge>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-4">
               <span className="bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
@@ -124,7 +122,7 @@ export default function ProductsForYouSection() {
               </span>
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl">
-              Découvrez les produits les plus souhaités - ce que tout le monde veut
+              Découvrez les produits les plus commandés - les best-sellers de notre boutique
             </p>
           </div>
           <Button
@@ -158,20 +156,10 @@ export default function ProductsForYouSection() {
                     <CardContent className="p-0 relative z-10">
                       <div className="relative overflow-hidden rounded-t-lg">
                         <img
-                          src={product.imageUrl || "/Placeholder.png"}
+                          src={product.image || "/Placeholder.png"}
                           alt={product.name}
                           className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
                         />
-
-                        {product.wishCount > 0 && (
-                          <Badge className="absolute top-3 left-3 bg-gradient-to-r from-pink-500 to-red-500 text-white text-sm px-3 py-1 font-bold shadow-sm">
-                            ❤️ {product.wishCount}
-                          </Badge>
-                        )}
-
-                        <Badge className="absolute top-3 right-3 bg-purple-500 text-white text-xs px-2 py-1 shadow-sm">
-                          {product.brand}
-                        </Badge>
 
                         <div className="absolute bottom-3 right-3 flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                           <Button
@@ -209,20 +197,6 @@ export default function ProductsForYouSection() {
                       </div>
 
                       <div className="p-4">
-                        <div className="mb-2">
-                          <span className="text-xs text-pink-600 dark:text-pink-400 font-medium">
-                            {product.wishCount > 50
-                              ? "Très souhaité"
-                              : product.wishCount > 20
-                                ? "Choix populaire"
-                                : "Montée en popularité"}
-                          </span>
-                        </div>
-
-                        <div className="mb-2">
-                          <span className="text-xs text-muted-foreground">{product.brand}</span>
-                        </div>
-
                         <h3 className="text-sm font-semibold text-foreground mb-2 group-hover:text-blue-500 transition-colors">
                           {product.name}
                         </h3>
@@ -238,7 +212,7 @@ export default function ProductsForYouSection() {
                               />
                             ))}
                           </div>
-                          <span className="text-xs text-muted-foreground ml-1">({product.reviewCount})</span>
+                          <span className="text-xs text-muted-foreground ml-1">({product.reviewsCount})</span>
                         </div>
 
                         <div className="flex items-center justify-between mb-3">
@@ -252,8 +226,8 @@ export default function ProductsForYouSection() {
                             id: product.id,
                             name: product.name,
                             price: product.price,
-                            image: product.imageUrl,
-                            category: product.brand,
+                            image: product.image,
+                            category: undefined,
                             stock: 100, // Stock par défaut
                           }}
                           variant="compact"

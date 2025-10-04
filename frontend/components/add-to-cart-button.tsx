@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { cn } from "@/lib/utils"
 
 interface Product {
-  id: number
+  id: string
   name: string
   price: number
   image: string
@@ -68,7 +68,7 @@ export default function AddToCartButton({
   const currentCategory = getCurrentCategory()
   const colorClasses = categoryColors[currentCategory]
 
-  const addToCartAPI = async (productId: number, quantity = 1) => {
+  const addToCartAPI = async (productId: string, quantity = 1) => {
     try {
       const token = localStorage.getItem("auth_token")
       if (!token) throw new Error("Aucun jeton d’authentification trouvé")

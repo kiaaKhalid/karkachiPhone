@@ -6,28 +6,28 @@ import { useToast } from "./use-toast"
 
 interface WishlistStatusDTO {
   inWishlist: boolean
-  wishlistItemId: number
+  wishlistItemId: string
   addedAt: string
 }
 
 interface WishlistItemRequestDTO {
-  productId: number
+  productId: string
   notifyOnPriceChange?: boolean
   notifyOnStock?: boolean
   targetPrice?: number
 }
 
 interface WishlistItemDTO {
-  id: number
-  productId: number
+  id: string
+  productId: string
   addedAt: string
 }
 
 interface WishlistResponseDTO {
   success: boolean
   wishlist: {
-    id: number
-    userId: number
+    id: string
+    userId: string
     items: WishlistItemDTO[]
     updatedAt: string
   }
@@ -36,14 +36,14 @@ interface WishlistResponseDTO {
 export function useWishlistApi() {
   const { isAuthenticated } = useAuth()
   const { toast } = useToast()
-  const [wishlistStatuses, setWishlistStatuses] = useState<Map<number, WishlistStatusDTO>>(new Map())
-  const [loadingStates, setLoadingStates] = useState<Map<number, boolean>>(new Map())
+  const [wishlistStatuses, setWishlistStatuses] = useState<Map<string, WishlistStatusDTO>>(new Map())
+  const [loadingStates, setLoadingStates] = useState<Map<string, boolean>>(new Map())
 
   const getAuthToken = () => localStorage.getItem("auth_token")
 
   // ✅ Vérifier statut
   const checkWishlistStatus = useCallback(
-    async (productId: number): Promise<WishlistStatusDTO | null> => {
+    async (productId: string): Promise<WishlistStatusDTO | null> => {
       if (!isAuthenticated) return null
       try {
         const token = getAuthToken()
@@ -67,7 +67,7 @@ export function useWishlistApi() {
 
   // ✅ Ajouter produit
   const addToWishlist = useCallback(
-    async (productId: number, options?: Partial<WishlistItemRequestDTO>) => {
+    async (productId: string, options?: Partial<WishlistItemRequestDTO>) => {
       if (!isAuthenticated) return false
       try {
         setLoadingStates((prev) => new Map(prev.set(productId, true)))
@@ -124,7 +124,7 @@ export function useWishlistApi() {
 
   // ✅ Supprimer produit
   const removeFromWishlist = useCallback(
-    async (productId: number) => {
+    async (productId: string) => {
       if (!isAuthenticated) return false
       try {
         setLoadingStates((prev) => new Map(prev.set(productId, true)))
@@ -149,7 +149,7 @@ export function useWishlistApi() {
               new Map(
                 prev.set(productId, {
                   inWishlist: false,
-                  wishlistItemId: 0,
+                  wishlistItemId: "",
                   addedAt: "",
                 }),
               ),
@@ -170,7 +170,7 @@ export function useWishlistApi() {
   )
 
   const toggleWishlist = useCallback(
-    async (productId: number, options?: Partial<WishlistItemRequestDTO>) => {
+    async (productId: string, options?: Partial<WishlistItemRequestDTO>) => {
       const status = wishlistStatuses.get(productId)
       return status?.inWishlist ? removeFromWishlist(productId) : addToWishlist(productId, options)
     },
@@ -189,8 +189,8 @@ export function useWishlistApi() {
     removeFromWishlist,
     toggleWishlist,
     checkWishlistStatus,
-    isInWishlist: (id: number) => wishlistStatuses.get(id)?.inWishlist || false,
-    isLoading: (id: number) => loadingStates.get(id) || false,
+    isInWishlist: (id: string) => wishlistStatuses.get(id)?.inWishlist || false,
+    isLoading: (id: string) => loadingStates.get(id) || false,
     wishlistStatuses,
   }
 }

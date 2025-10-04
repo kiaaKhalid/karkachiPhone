@@ -40,6 +40,8 @@ export default function ForgotPasswordPage() {
   const router = useRouter()
   const { toast } = useToast()
 
+  const urlBase = process.env.NEXT_PUBLIC_API_URL || "https://karkachiphon-app-a513bd8dab1d.herokuapp.com"
+
   const updateFormData = (field: keyof ForgotPasswordData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
     setError("") // Clear error when user types
@@ -51,26 +53,24 @@ export default function ForgotPasswordPage() {
     setError("")
 
     try {
-      const url = `https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/auth/send-reset-code?email=${encodeURIComponent(formData.email)}`
-
-      const response = await fetch(url, {
-        method: "GET",
+      const response = await fetch(`${urlBase}/api/auth/send-reset-code`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
+        body: JSON.stringify({ email: formData.email }),
       })
 
       if (response.ok) {
-        const code = await response.json()
+        const data = await response.json()
         toast({
           title: "Code sent!",
-          description: "Please check your email for the reset code.",
+          description: data.message || "Please check your email for the reset code.",
         })
         setCurrentStep(2)
-      } else if (response.status === 404) {
-        setError("Email not found. Please check your email address.")
       } else {
+        const errorMessage = await response.text()
         setError("Failed to send reset code. Please try again.")
       }
     } catch (err) {
@@ -80,21 +80,49 @@ export default function ForgotPasswordPage() {
     }
   }
 
-  const handleVerifyCode = (e: React.FormEvent) => {
+  const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault()
+    setIsLoading(true)
     setError("")
 
     if (!formData.code || formData.code.length !== 6) {
       setError("Please enter a valid 6-digit code.")
+      setIsLoading(false)
       return
     }
 
     if (!/^\d{6}$/.test(formData.code)) {
       setError("Code must contain only numbers.")
+      setIsLoading(false)
       return
     }
 
-    setCurrentStep(3)
+    try {
+      const response = await fetch(`${urlBase}/api/auth/verify-reset-code`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ email: formData.email, code: formData.code }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.valid) {
+          setCurrentStep(3)
+        } else {
+          setError("Invalid verification code. Please try again.")
+        }
+      } else {
+        const errorMessage = await response.text()
+        setError("Failed to verify code. Please try again.")
+      }
+    } catch (err) {
+      setError("Network error. Please check if the server is running and try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -119,25 +147,22 @@ export default function ForgotPasswordPage() {
     }
 
     try {
-      const url = `https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/auth/forget-password`
-
-      const requestBody = {
-        email: formData.email,
-        code: formData.code,
-        newPassword: formData.newPassword,
-        confirmPassword: formData.confirmPassword,
-      }
-
-      const response = await fetch(url, {
-        method: "PUT",
+      const response = await fetch(`${urlBase}/api/auth/forget-password`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          email: formData.email,
+          code: formData.code,
+          newPassword: formData.newPassword,
+          confirmPassword: formData.confirmPassword,
+        }),
       })
 
       if (response.ok) {
+        const data = await response.json()
         toast({
           title: "Password updated!",
           description: "Your password has been successfully updated.",
@@ -153,6 +178,8 @@ export default function ForgotPasswordPage() {
             setError("Password reset is not allowed for users authenticated via social login.")
           } else if (errorMessage.includes("do not match")) {
             setError("New password and confirm password do not match.")
+          } else if (errorMessage.includes("Invalid code")) {
+            setError("Invalid verification code.")
           } else {
             setError("Invalid request. Please try again.")
           }
@@ -162,7 +189,7 @@ export default function ForgotPasswordPage() {
       }
     } catch (err) {
       if (err instanceof TypeError && err.message.includes("Failed to fetch")) {
-        setError("Cannot connect to server. Please check if the server is running on https://karkachiphon-app-a513bd8dab1d.herokuapp.com")
+        setError("Cannot connect to server. Please check if the server is running on " + urlBase)
       } else {
         setError("Network error. Please check your connection and try again.")
       }
@@ -323,20 +350,29 @@ export default function ForgotPasswordPage() {
                     className="text-center text-lg tracking-widest"
                     maxLength={6}
                     required
+                    disabled={isLoading}
                   />
                   <p className="text-sm text-gray-500 text-center">Code envoyé à {formData.email}</p>
                 </div>
 
                 <div className="flex space-x-3">
-                  <Button type="button" variant="outline" onClick={goBack} className="flex-1 bg-transparent">
+                  <Button type="button" variant="outline" onClick={goBack} className="flex-1 bg-transparent" disabled={isLoading}>
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Retour
                   </Button>
                   <Button
                     type="submit"
                     className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                    disabled={isLoading}
                   >
-                    Vérifier le code
+                    {isLoading ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Vérification...</span>
+                      </div>
+                    ) : (
+                      "Vérifier le code"
+                    )}
                   </Button>
                 </div>
               </form>

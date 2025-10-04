@@ -1,5 +1,5 @@
 export interface Product {
-  id: number;
+  id: string;
   name: string;
   description?: string;
   shortDescription?: string | null;
@@ -18,7 +18,7 @@ export interface Product {
 }
 
 export interface User {
-  id: number
+  id: string
   email: string
   name: string
   role: "user" | "admin"
@@ -30,7 +30,7 @@ export interface User {
 }
 
 export interface CartItem {
-  id: number
+  id: string
   name: string
   brand: string
   price: number
@@ -40,8 +40,8 @@ export interface CartItem {
 }
 
 export interface Order {
-  id: number
-  userId: number
+  id: string
+  userId: string
   items: CartItem[]
   total: number
   status: "pending" | "processing" | "shipped" | "delivered" | "cancelled"
@@ -62,7 +62,7 @@ export interface Order {
 }
 
 export interface Category {
-  id: number
+  id: string
   name: string
   slug: string
   description?: string
@@ -70,7 +70,7 @@ export interface Category {
 }
 
 export interface Brand {
-  id: number
+  id: string
   name: string
   slug: string
   logo?: string
@@ -91,8 +91,8 @@ export interface AdminStats {
 }
 
 export interface ContactMessage {
-  id: number
-  orderId?: number
+  id: string
+  orderId?: string
   customerName: string
   customerEmail: string
   customerPhone?: string
