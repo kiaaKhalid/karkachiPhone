@@ -1,3 +1,4 @@
+// hooks/use-auth.tsx
 "use client";
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
@@ -25,32 +26,43 @@ interface AuthContextType {
   register: (name: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
   updateUser: (userData: Partial<User>) => void;
+  setUser: (user: User | null) => Promise<void>;
+  recheckSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const loginAttempts: Record<string, { count: number; lastAttempt: number }> = {};
 
+const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUserInternal] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    // Vérification de la session existante et expiration du token
     const checkSession = async () => {
+      console.log("Checking session...");
       try {
         const encryptedUser = localStorage.getItem("auth_user");
         const authToken = localStorage.getItem("auth_token");
 
+        console.log("Stored data:", { hasUser: !!encryptedUser, hasToken: !!authToken });
+
         if (encryptedUser && authToken) {
           const userData = await decryptData(encryptedUser);
-          const tokenExpiration = getTokenExpiration(authToken); // Obtenir la date d'expiration du token
+          console.log("Decrypted userData:", userData);
+          const tokenExpiration = getTokenExpiration(authToken);
 
-          if (userData && tokenExpiration > Date.now() / 1000) {  // Si le token n'est pas expiré
-            setUser(JSON.parse(userData));
+          console.log("Token exp:", tokenExpiration, "Now:", Date.now() / 1000);
+
+          if (userData && tokenExpiration > Date.now() / 1000) {
+            const parsedUser = JSON.parse(userData);
+            console.log("Parsed user:", parsedUser);
+            setUserInternal(parsedUser);
           } else {
-            // Token expiré, supprimer la session et rediriger vers la page de connexion
+            console.log("Session invalid/expired");
             localStorage.removeItem("auth_user");
             localStorage.removeItem("auth_token");
             localStorage.clear();
@@ -68,14 +80,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     checkSession();
-  }, []);
+  }, [router]);
 
   const getTokenExpiration = (token: string): number => {
     try {
-      const payload = JSON.parse(atob(token.split(".")[1])); // Décoder le payload du JWT
-      return payload.exp || 0;  // Retourner l'expiration du token
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      return payload.exp || 0;
     } catch (e) {
-      return 0;  // Token invalide
+      return 0;
     }
   };
 
@@ -88,13 +100,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     }
 
-    // Réinitialiser le compteur si 15 minutes se sont écoulées
     if (now - attempts.lastAttempt > 15 * 60 * 1000) {
       loginAttempts[email] = { count: 1, lastAttempt: now };
       return true;
     }
 
-    // Vérifier si on est sous la limite de tentatives (5 tentatives par 15 minutes)
     if (attempts.count >= 5) {
       return false;
     }
@@ -110,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: "Trop de tentatives de connexion. Essayez à nouveau dans 15 minutes." };
       }
 
-      const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/auth/login", {
+      const response = await fetch(`${apiUrl}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -122,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const data = await response.json();
 
-      const userRole = data.role ? data.role.toLowerCase() : null;
+      const userRole = data.user.role ? data.user.role.toLowerCase() : null;
       if (!["user", "admin", "super_admin"].includes(userRole)) {
         return { success: false, error: `Rôle non autorisé : ${userRole || "manquant"}` };
       }
@@ -130,22 +140,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       delete loginAttempts[email];
 
       const authUser: User = {
-        id: data.id.toString(),
-        name: data.name || email.split("@")[0],
-        email: data.email,
+        id: data.user.id,
+        name: data.user.name || email.split("@")[0],
+        email: data.user.email,
         role: userRole as "user" | "admin" | "super_admin",
-        avatar: data.imageUrl || "https://i.ibb.co/C3R4f9gT/user.png?height=40&width=40",
-        phone: data.phone || "",
-        address: data.address || "",
-        createdAt: data.createdAt || new Date().toISOString(),
-        lastLogin: data.lastLogin || new Date().toISOString(),
+        avatar: data.user.avatar || "https://i.ibb.co/C3R4f9gT/user.png?height=40&width=40",
+        phone: "",
+        address: "",
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
       };
 
       const encryptedUser = await encryptData(JSON.stringify(authUser));
       localStorage.setItem("auth_user", encryptedUser);
-      localStorage.setItem("auth_token", data.token);
+      localStorage.setItem("auth_token", data.accessToken);
 
-      setUser(authUser);
+      setUserInternal(authUser);
 
       return { success: true, user: authUser };
     } catch (error) {
@@ -169,20 +179,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("auth_token");
     localStorage.clear();
     router.push("/auth/login");
-    setUser(null);
+    setUserInternal(null);
   };
 
   const updateUser = async (userData: Partial<User>) => {
     if (!user) return;
 
     const updatedUser = { ...user, ...userData };
-    setUser(updatedUser);
+    setUserInternal(updatedUser);
 
     try {
       const encryptedUser = await encryptData(JSON.stringify(updatedUser));
       localStorage.setItem("auth_user", encryptedUser);
     } catch (error) {
       console.error("Échec de la mise à jour des données utilisateur :", error);
+    }
+  };
+
+  const setUser = async (newUser: User | null) => {
+    setUserInternal(newUser);
+    if (newUser) {
+      const encryptedUser = await encryptData(JSON.stringify(newUser));
+      localStorage.setItem("auth_user", encryptedUser);
+    } else {
+      localStorage.removeItem("auth_user");
+      localStorage.removeItem("auth_token");
+    }
+  };
+
+  const recheckSession = async () => {
+    setIsLoading(true);
+    try {
+      const encryptedUser = localStorage.getItem("auth_user");
+      const authToken = localStorage.getItem("auth_token");
+      if (encryptedUser && authToken) {
+        const userData = await decryptData(encryptedUser);
+        const tokenExpiration = getTokenExpiration(authToken);
+        if (userData && tokenExpiration > Date.now() / 1000) {
+          setUserInternal(JSON.parse(userData));
+          console.log("Re-check success: user set");
+          return;
+        }
+      }
+      throw new Error("Invalid session on re-check");
+    } catch (error) {
+      console.error("Re-check failed:", error);
+      localStorage.removeItem("auth_user");
+      localStorage.removeItem("auth_token");
+      router.push("/auth/login");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -194,6 +240,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register,
     logout,
     updateUser,
+    setUser,
+    recheckSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -7,32 +7,10 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useAdmin } from "@/hooks/use-admin";
 
-// Color mapping for different categories
-const colorMap: Record<string, string> = {
-  smartphones: "bg-blue-500 hover:bg-blue-600",
-  laptops: "bg-green-500 hover:bg-green-600",
-  smartwatches: "bg-purple-500 hover:bg-purple-600",
-  gaming: "bg-red-500 hover:bg-red-600",
-  services: "bg-yellow-500 hover:bg-yellow-600",
-  accessories: "bg-orange-500 hover:bg-orange-600",
-  audio: "bg-pink-500 hover:bg-pink-600",
-  cameras: "bg-indigo-500 hover:bg-indigo-600",
-  tablets: "bg-teal-500 hover:bg-teal-600",
-  tv: "bg-cyan-500 hover:bg-cyan-600",
-  appliances: "bg-gray-500 hover:bg-gray-600",
-};
-
-// Mapping for API category names to colorMap slugs
-const nameToSlugMap: Record<string, string> = {
-  Smartphones: "smartphones",
-  Ordinateurs: "laptops",
-  Audio: "audio",
-  TV: "tv",
-  Électroménagers: "appliances",
-};
+const urlBase = process.env.NEXT_PUBLIC_API_URL || "https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api";
 
 interface CategoryChoix {
-  id: number;
+  id: string;
   name: string;
   image: string;
 }
@@ -45,6 +23,16 @@ interface CategoryRibbonProps {
 const CATEGORIES_CACHE_KEY = "cached_categories";
 const CATEGORIES_CACHE_TIMESTAMP_KEY = "cached_categories_timestamp";
 const CACHE_DURATION = 60 * 60 * 1000;
+
+// Dynamic colors for categories
+const categoryColors = [
+  { base: "bg-blue-500 hover:bg-blue-600", gradient: "from-blue-400 to-blue-600", light: "bg-blue-400" },
+  { base: "bg-green-500 hover:bg-green-600", gradient: "from-green-400 to-green-600", light: "bg-green-400" },
+  { base: "bg-purple-500 hover:bg-purple-600", gradient: "from-purple-400 to-purple-600", light: "bg-purple-400" },
+  { base: "bg-red-500 hover:bg-red-600", gradient: "from-red-400 to-red-600", light: "bg-red-400" },
+  { base: "bg-yellow-500 hover:bg-yellow-600", gradient: "from-yellow-400 to-yellow-600", light: "bg-yellow-400" },
+  { base: "bg-orange-500 hover:bg-orange-600", gradient: "from-orange-400 to-orange-600", light: "bg-orange-400" },
+];
 
 export default function CategoryRibbon({ isScrolled }: CategoryRibbonProps) {
   const pathname = usePathname();
@@ -109,7 +97,7 @@ export default function CategoryRibbon({ isScrolled }: CategoryRibbonProps) {
       }
       
       // Si pas de cache valide, faire la requête API
-      const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/category/root-active");
+      const response = await fetch(`${urlBase}/public/category/root-active`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -140,15 +128,18 @@ export default function CategoryRibbon({ isScrolled }: CategoryRibbonProps) {
     fetchCategories();
   }, []);
 
-  const dynamicCategories = apiCategories.map((cat) => {
-    const slug = nameToSlugMap[cat.name] || cat.name.toLowerCase();
+  const dynamicCategories = apiCategories.map((cat, index) => {
+    const slug = cat.name.toLowerCase().replace(/\s+/g, '-');
+    const catColor = categoryColors[index % categoryColors.length];
     return {
       id: cat.id,
       name: cat.name,
-      href: `/categories/${cat.name}`,
+      href: `/categories/${cat.id}`,
       slug,
       image: cat.image,
-      color: colorMap[slug] || "bg-gray-500 hover:bg-gray-600",
+      color: catColor.base,
+      gradient: catColor.gradient,
+      light: catColor.light,
     };
   });
 
@@ -278,15 +269,7 @@ export default function CategoryRibbon({ isScrolled }: CategoryRibbonProps) {
                       : `hover:text-white hover:shadow-2xl`,
                     hoveredCategory === category.name && "scale-125 z-30 shadow-2xl border-white/50",
                     // Dynamic hover background colors
-                    hoveredCategory === category.name && index === 0 && "bg-gradient-to-br from-blue-400 to-blue-600",
-                    hoveredCategory === category.name && index === 1 && "bg-gradient-to-br from-green-400 to-green-600",
-                    hoveredCategory === category.name &&
-                      index === 2 &&
-                      "bg-gradient-to-br from-pink-400 to-pink-600",
-                    hoveredCategory === category.name && index === 3 && "bg-gradient-to-br from-cyan-400 to-cyan-600",
-                    hoveredCategory === category.name &&
-                      index === 4 &&
-                      "bg-gradient-to-br from-gray-400 to-gray-600",
+                    hoveredCategory === category.name && `bg-gradient-to-br ${category.gradient}`,
                   )}
                 >
                   <Link href={category.href} className="relative z-10">
@@ -343,15 +326,7 @@ export default function CategoryRibbon({ isScrolled }: CategoryRibbonProps) {
                 key={category.id}
                 className={cn(
                   "w-6 h-1 sm:w-8 sm:h-1.5 rounded-full transition-all duration-300 blur-[0.3px] hover:blur-none",
-                  index === 0
-                    ? "bg-blue-400"
-                    : index === 1
-                      ? "bg-green-400"
-                      : index === 2
-                        ? "bg-pink-400"
-                        : index === 3
-                          ? "bg-cyan-400"
-                          : "bg-gray-400",
+                  category.light,
                 )}
               />
             ))}

@@ -22,29 +22,23 @@ import {
 import EditUserPopup from "@/components/admin/edit-user-popup"
 
 interface UserDTO {
-  id: number
+  id: string
   name: string
   email: string
-  imageUrl?: string
   phone?: string
+  avatarUrl?: string
   role: string
   isActive: boolean
-  emailVerified: boolean
-  phoneVerified: boolean
-  authProvider?: string
   createdAt: string
   updatedAt: string
-  lastLogin?: string
 }
 
 interface PageResponse<T> {
-  content: T[]
-  totalElements: number
+  items: T[]
+  total: number
+  page: number
+  limit: number
   totalPages: number
-  size: number
-  number: number
-  first: boolean
-  last: boolean
 }
 
 export default function AdminUsersPage() {
@@ -57,7 +51,7 @@ export default function AdminUsersPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterRole, setFilterRole] = useState("all")
   const [filterStatus, setFilterStatus] = useState("all")
-  const [currentPage, setCurrentPage] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1) // API uses 1-based
   const [totalPages, setTotalPages] = useState(0)
   const [totalElements, setTotalElements] = useState(0)
   const [isAddingUser, setIsAddingUser] = useState(false)
@@ -69,6 +63,8 @@ export default function AdminUsersPage() {
   })
   const [isEditingUser, setIsEditingUser] = useState(false)
   const [editingUser, setEditingUser] = useState<UserDTO | null>(null)
+
+  const API_BASE = `${process.env.NEXT_PUBLIC_API_URL}/super-admin/users`
 
   const fetchUsers = async () => {
     try {
@@ -90,7 +86,7 @@ export default function AdminUsersPage() {
         sortOrder: "desc",
       })
 
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/users?${params}`, {
+      const response = await fetch(`${API_BASE}?${params}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -101,10 +97,10 @@ export default function AdminUsersPage() {
         throw new Error(`Failed to fetch users: ${response.status}`)
       }
 
-      const data: PageResponse<UserDTO> = await response.json()
-      setUsers(data.content)
+      const data: PageResponse<UserDTO> = await response.json().then(r => r.data)
+      setUsers(data.items)
       setTotalPages(data.totalPages)
-      setTotalElements(data.totalElements)
+      setTotalElements(data.total)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch users")
       console.error("Error fetching users:", err)
@@ -113,16 +109,16 @@ export default function AdminUsersPage() {
     }
   }
 
-  const handleToggleUserStatus = async (userId: number, currentStatus: boolean) => {
+  const handleToggleUserStatus = async (userId: string, currentStatus: boolean) => {
     try {
       const token = localStorage.getItem("auth_token")
       if (!token) {
         throw new Error("No authentication token found")
       }
 
-      const action = currentStatus ? "deactivate" : "activate"
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/super-admin/users/${userId}/${action}`, {
-        method: "PUT",
+      const action = currentStatus ? "desactivate" : "activate"
+      const response = await fetch(`${API_BASE}/${userId}/${action}`, {
+        method: "PATCH",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -132,6 +128,8 @@ export default function AdminUsersPage() {
       if (!response.ok) {
         throw new Error(`Failed to ${action} user`)
       }
+
+      await response.json()
 
       setUsers(users.map((u) => (u.id === userId ? { ...u, isActive: !currentStatus } : u)))
 
@@ -148,24 +146,53 @@ export default function AdminUsersPage() {
     }
   }
 
-  const handleRoleChange = (userId: number, newRole: string) => {
-    // TODO: Implement role change API call
-    toast({
-      title: "Info",
-      description: "Role change functionality will be implemented",
-    })
-  }
-
-  const handleAddUser = async () => {
-    if (user?.role !== "super_admin") {
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    if (userId === user?.id) {
       toast({
-        title: "Access Denied",
-        description: "Only Super Admins can create new users",
+        title: "Error",
+        description: "Cannot change your own role",
         variant: "destructive",
       })
       return
     }
 
+    try {
+      const token = localStorage.getItem("auth_token")
+      if (!token) {
+        throw new Error("No authentication token found")
+      }
+
+      const response = await fetch(`${API_BASE}/${userId}/role`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ role: newRole }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to change role: ${response.status}`)
+      }
+
+      const result = await response.json()
+
+      setUsers(users.map((u) => (u.id === userId ? { ...u, role: result.data.user.role } : u)))
+
+      toast({
+        title: "Success",
+        description: `Role changed to ${newRole}`,
+      })
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : `Failed to change role`,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleAddUser = async () => {
     if (!newUser.name || !newUser.email || !newUser.password) {
       toast({
         title: "Error",
@@ -181,7 +208,7 @@ export default function AdminUsersPage() {
         throw new Error("No authentication token found")
       }
 
-      const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/users", {
+      const response = await fetch(API_BASE, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -202,7 +229,8 @@ export default function AdminUsersPage() {
 
       const createdUser: UserDTO = await response.json()
 
-      setUsers([createdUser, ...users])
+      // Refetch to get updated list
+      fetchUsers()
 
       toast({
         title: "Success ✅",
@@ -344,7 +372,6 @@ export default function AdminUsersPage() {
                       <th className="text-left py-3 px-2 text-high-contrast font-semibold">Email</th>
                       <th className="text-left py-3 px-2 text-high-contrast font-semibold">Role</th>
                       <th className="text-left py-3 px-2 text-high-contrast font-semibold">Status</th>
-                      <th className="text-left py-3 px-2 text-high-contrast font-semibold">Verified</th>
                       {user?.role === "super_admin" && (
                         <th className="text-left py-3 px-2 text-high-contrast font-semibold">Actions</th>
                       )}
@@ -355,9 +382,9 @@ export default function AdminUsersPage() {
                       <tr key={u.id} className="border-b border-visible hover:bg-secondary/50">
                         <td className="py-4 px-2">
                           <div className="flex items-center gap-3">
-                            {u.imageUrl ? (
+                            {u.avatarUrl ? (
                               <img
-                                src={u.imageUrl || "/placeholder.svg"}
+                                src={u.avatarUrl || "/placeholder.svg"}
                                 alt={u.name}
                                 className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
                                 onError={(e) => {
@@ -388,7 +415,7 @@ export default function AdminUsersPage() {
                           <Select
                             value={u.role}
                             onValueChange={(value: string) => handleRoleChange(u.id, value)}
-                            disabled={u.id === Number(user?.id)}
+                            disabled={u.id === user?.id}
                           >
                             <SelectTrigger className="w-32 rounded-lg border-visible">
                               <SelectValue />
@@ -431,20 +458,6 @@ export default function AdminUsersPage() {
                             {u.isActive ? "Active" : "Inactive"}
                           </Badge>
                         </td>
-                        <td className="py-4 px-2">
-                          <div className="flex gap-1">
-                            {u.emailVerified && (
-                              <Badge variant="outline" className="text-xs">
-                                Email ✓
-                              </Badge>
-                            )}
-                            {u.phoneVerified && (
-                              <Badge variant="outline" className="text-xs">
-                                Phone ✓
-                              </Badge>
-                            )}
-                          </div>
-                        </td>
                         {user?.role === "super_admin" && (
                           <td className="py-4 px-2">
                             <div className="flex gap-2">
@@ -461,7 +474,7 @@ export default function AdminUsersPage() {
                                 size="sm"
                                 className="rounded-lg"
                                 onClick={() => handleToggleUserStatus(u.id, u.isActive)}
-                                disabled={u.id === Number(user?.id)}
+                                disabled={u.id === user?.id}
                               >
                                 {u.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
                               </Button>
@@ -484,19 +497,19 @@ export default function AdminUsersPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-                    disabled={currentPage === 0}
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
                   >
                     Previous
                   </Button>
                   <span className="px-3 py-1 text-sm">
-                    Page {currentPage + 1} of {totalPages}
+                    Page {currentPage} of {totalPages}
                   </span>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
-                    disabled={currentPage === totalPages - 1}
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
                   >
                     Next
                   </Button>
@@ -565,12 +578,6 @@ export default function AdminUsersPage() {
                       <div className="flex items-center gap-2">
                         <Shield className="h-4 w-4 text-red-500" />
                         Super Admin
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="LIVREUR">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-green-500" />
-                        Delivery
                       </div>
                     </SelectItem>
                   </SelectContent>

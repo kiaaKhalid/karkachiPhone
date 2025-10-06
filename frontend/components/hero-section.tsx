@@ -7,16 +7,21 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowRight } from "lucide-react"
 
 interface TopSoldProductDto {
-  id: number
+  id: string
   name: string
-  imageUrl: string
-  price: number
-  soldCount: number
-  specifications: Array<{
-    key: string
-    value: string
-  }>
+  image: string
+  price: string
+  originalPrice: string
+  description: string
+  stock: number
+  rating: string
+  reviewsCount: number
+  discount: number | null
+  isNew: boolean
+  isBestSeller: boolean
 }
+
+const urlBase = process.env.NEXT_PUBLIC_API_URL || "https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api"
 
 export default function HeroSection() {
   const [currentSlide, setCurrentSlide] = useState(0)
@@ -29,12 +34,12 @@ export default function HeroSection() {
     const fetchTopSoldProducts = async () => {
       try {
         setIsLoading(true)
-        const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/products/top-sold")
+        const response = await fetch(`${urlBase}/public/products/saller`)
         if (!response.ok) {
           throw new Error("Failed to fetch products")
         }
-        const data: TopSoldProductDto[] = await response.json()
-        setTopProducts(data)
+        const data = await response.json()
+        setTopProducts(data.data || [])
         setError(false)
       } catch (err) {
         console.error("Error fetching top sold products:", err)
@@ -136,7 +141,6 @@ export default function HeroSection() {
   }
 
   const currentProduct = topProducts[currentSlide]
-  const features = currentProduct.specifications.slice(0, 4).map((spec) => spec.value)
 
   return (
     <section className="relative bg-gradient-to-br from-amber-50/30 via-white to-yellow-50/20 dark:from-gray-900 dark:via-gray-800 dark:to-amber-900/10 overflow-hidden transition-colors duration-300">
@@ -150,7 +154,7 @@ export default function HeroSection() {
           <div className="space-y-6 sm:space-y-8 text-center lg:text-left">
             <div className="space-y-4">
               <Badge className="bg-gradient-to-r from-[#01A0EA] to-[#03669A] text-white px-4 py-2 text-sm font-medium shadow-sm">
-                {currentProduct.soldCount} Sold
+                Best Seller
               </Badge>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold leading-tight text-foreground">
                 <span className="bg-gradient-to-r from-[#01A0EA] via-[#03669A] to-[#01A0EA] bg-clip-text text-transparent">
@@ -158,31 +162,22 @@ export default function HeroSection() {
                 </span>
               </h1>
               <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto lg:mx-0">
-                Experience the latest technology with this top-selling device
+                {currentProduct.description}
               </p>
-            </div>
-
-            {/* Features */}
-            <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md mx-auto lg:mx-0">
-              {features.map((feature, index) => (
-                <div
-                  key={index}
-                  className="flex items-center space-x-2 bg-background/50 dark:bg-background/80 backdrop-blur-sm rounded-lg px-3 py-2 border border-border shadow-sm"
-                >
-                  <div className="w-2 h-2 bg-gradient-to-r from-[#01A0EA] to-[#03669A] rounded-full"></div>
-                  <span className="text-sm font-medium text-foreground">{feature}</span>
-                </div>
-              ))}
             </div>
 
             {/* Price and CTA */}
             <div className="space-y-6">
               <div className="flex items-center justify-center lg:justify-start space-x-4">
-                <span className="text-3xl sm:text-4xl font-bold text-foreground">{currentProduct.price} MAD</span>
-                <span className="text-xl text-muted-foreground line-through">
-                  {(currentProduct.price * 1.1).toFixed(0)} MAD
-                </span>
-                <Badge className="bg-red-500 text-white shadow-sm">Top Seller</Badge>
+                <span className="text-3xl sm:text-4xl font-bold text-foreground">{parseFloat(currentProduct.price).toFixed(2)} MAD</span>
+                {currentProduct.originalPrice && (
+                  <span className="text-xl text-muted-foreground line-through">
+                    {parseFloat(currentProduct.originalPrice).toFixed(2)} MAD
+                  </span>
+                )}
+                {currentProduct.discount && currentProduct.discount > 0 && (
+                  <Badge className="bg-red-500 text-white shadow-sm">-{currentProduct.discount}%</Badge>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
@@ -217,7 +212,7 @@ export default function HeroSection() {
             >
               <div className="relative w-full h-[500px] sm:h-[600px] overflow-hidden">
                 <img
-                  src={currentProduct.imageUrl || "/Placeholder.png"}
+                  src={currentProduct.image || "/Placeholder.png"}
                   alt={currentProduct.name}
                   className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-110"
                 />
@@ -262,7 +257,7 @@ export default function HeroSection() {
               {/* Product Info Overlay */}
               <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/60 via-black/30 to-transparent text-white transform translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out">
                 <h3 className="text-xl font-bold mb-2">{currentProduct.name}</h3>
-                <p className="text-sm opacity-90">{currentProduct.soldCount} units sold - Top performer</p>
+                <p className="text-sm opacity-90">Best Seller - Top performer</p>
               </div>
             </div>
           </div>

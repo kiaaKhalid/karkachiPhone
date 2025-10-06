@@ -38,38 +38,40 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  User,
+  Package,
 } from "lucide-react"
 
-interface ProductReviewAdminDTO {
-  idReview: number
-  title: string
-  comment: string
+interface Review {
+  id: string
+  userId: string
+  productId: string
   rating: number
+  comment: string
+  isVerified: number
   createdAt: string
-  isApproved: number | null
-  nameUser: string
-  emailUser: string
-  urlUser: string
-  nameProduct: string
-  UrlProduct: string
+  userName: string
+  userImage: string | null
+  productName: string
 }
 
-interface PageResponse {
-  content: ProductReviewAdminDTO[]
-  totalElements: number
-  totalPages: number
-  size: number
-  number: number
-  first: boolean
-  last: boolean
+interface ReviewsResponse {
+  success: boolean
+  message: string
+  data: {
+    items: Review[]
+    total: number
+    page: number
+    limit: number
+  }
 }
 
 export default function AdminReviewsPage() {
-  const [reviews, setReviews] = useState<ProductReviewAdminDTO[]>([])
+  const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
   const [reviewsLoading, setReviewsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [currentPage, setCurrentPage] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
   const [totalElements, setTotalElements] = useState(0)
   const [pageSize] = useState(10)
@@ -77,14 +79,16 @@ export default function AdminReviewsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [ratingFilter, setRatingFilter] = useState<string>("all")
-  const [sortBy, setSortBy] = useState<string>("newest")
-  const [selectedReview, setSelectedReview] = useState<ProductReviewAdminDTO | null>(null)
+  const [selectedReview, setSelectedReview] = useState<Review | null>(null)
   const [userRole, setUserRole] = useState<string>("")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [reviewToDelete, setReviewToDelete] = useState<number | null>(null)
+  const [reviewToDelete, setReviewToDelete] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const fetchReviews = async (page = 0, isRefresh = false) => {
+  const url = process.env.NEXT_PUBLIC_API_URL
+  const defaultUserImage = "https://i.ibb.co/C3R4f9gT/user.png"
+
+  const fetchReviews = async (page = 1, isRefresh = false) => {
     try {
       if (isRefresh) {
         setReviewsLoading(true)
@@ -99,7 +103,7 @@ export default function AdminReviewsPage() {
         return
       }
 
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/reviews/all?page=${page}&size=${pageSize}`, {
+      const response = await fetch(`${url}/admin/reviews?page=${page}&limit=${pageSize}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -110,11 +114,11 @@ export default function AdminReviewsPage() {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const data: PageResponse = await response.json()
-      setReviews(data.content)
-      setTotalPages(data.totalPages)
-      setTotalElements(data.totalElements)
-      setCurrentPage(data.number)
+      const data: ReviewsResponse = await response.json()
+      setReviews(data.data.items)
+      setTotalPages(Math.ceil(data.data.total / pageSize))
+      setTotalElements(data.data.total)
+      setCurrentPage(data.data.page)
     } catch (error) {
       console.error("Error fetching reviews:", error)
       setError("Failed to load reviews")
@@ -141,7 +145,7 @@ export default function AdminReviewsPage() {
     fetchReviews()
   }, [])
 
-  const handleApproveReview = async (reviewId: number) => {
+  const handleVerifyReview = async (reviewId: string) => {
     try {
       const token = localStorage.getItem("auth_token")
       if (!token) {
@@ -149,7 +153,7 @@ export default function AdminReviewsPage() {
         return
       }
 
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/reviews/${reviewId}/approved`, {
+      const response = await fetch(`${url}/admin/reviews/${reviewId}/verified`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -160,15 +164,15 @@ export default function AdminReviewsPage() {
       if (response.ok) {
         await fetchReviews(currentPage, true)
       } else {
-        setError("Failed to approve review")
+        setError("Failed to verify review")
       }
     } catch (error) {
-      console.error("Error approving review:", error)
-      setError("Failed to approve review")
+      console.error("Error verifying review:", error)
+      setError("Failed to verify review")
     }
   }
 
-  const handleDisagreeReview = async (reviewId: number) => {
+  const handleUnverifyReview = async (reviewId: string) => {
     try {
       const token = localStorage.getItem("auth_token")
       if (!token) {
@@ -176,7 +180,7 @@ export default function AdminReviewsPage() {
         return
       }
 
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/reviews/${reviewId}/disagree`, {
+      const response = await fetch(`${url}/admin/reviews/${reviewId}/not-verified`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -187,15 +191,15 @@ export default function AdminReviewsPage() {
       if (response.ok) {
         await fetchReviews(currentPage, true)
       } else {
-        setError("Failed to disagree review")
+        setError("Failed to unverify review")
       }
     } catch (error) {
-      console.error("Error disagreeing review:", error)
-      setError("Failed to disagree review")
+      console.error("Error unverifying review:", error)
+      setError("Failed to unverify review")
     }
   }
 
-  const handleDeleteReview = async (reviewId: number) => {
+  const handleDeleteReview = async (reviewId: string) => {
     if (userRole !== "SUPER_ADMIN") {
       setError("Only Super Admin can delete reviews")
       return
@@ -216,7 +220,7 @@ export default function AdminReviewsPage() {
         return
       }
 
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/super-admin/reviews/${reviewToDelete}`, {
+      const response = await fetch(`${url}/super-admin/reviews/${reviewToDelete}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -241,16 +245,14 @@ export default function AdminReviewsPage() {
 
   const filteredReviews = reviews.filter((review) => {
     const matchesSearch =
-      review.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       review.comment.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      review.nameUser.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      review.nameProduct.toLowerCase().includes(searchTerm.toLowerCase())
+      review.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      review.productName.toLowerCase().includes(searchTerm.toLowerCase())
 
     const matchesStatus =
       statusFilter === "all" ||
-      (statusFilter === "approved" && review.isApproved === 2.0) ||
-      (statusFilter === "pending" && review.isApproved === 0.0) ||
-      (statusFilter === "rejected" && review.isApproved === 1.0)
+      (statusFilter === "verified" && review.isVerified === 1) ||
+      (statusFilter === "unverified" && review.isVerified === 0)
 
     const matchesRating = ratingFilter === "all" || review.rating.toString() === ratingFilter
 
@@ -259,25 +261,20 @@ export default function AdminReviewsPage() {
 
   const stats = {
     total: totalElements,
-    approved: reviews.filter((r) => r.isApproved === 2.0).length,
-    pending: reviews.filter((r) => r.isApproved === 0.0).length,
-    rejected: reviews.filter((r) => r.isApproved === 1.0).length,
+    verified: reviews.filter((r) => r.isVerified === 1).length,
+    unverified: reviews.filter((r) => r.isVerified === 0).length,
     averageRating: reviews.length > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0,
   }
 
-  const getStatusBadge = (isApproved: number | null) => {
-    if (isApproved === 2.0) {
+  const getStatusBadge = (isVerified: number) => {
+    if (isVerified === 1) {
       return (
         <Badge variant="default" className="bg-green-100 text-green-800">
-          Approved
+          Verified
         </Badge>
       )
-    } else if (isApproved === 0.0) {
-      return <Badge variant="secondary">Pending</Badge>
-    } else if (isApproved === 1.0) {
-      return <Badge variant="destructive">Rejected</Badge>
     } else {
-      return <Badge variant="secondary">Unknown</Badge>
+      return <Badge variant="secondary">Unverified</Badge>
     }
   }
 
@@ -288,7 +285,7 @@ export default function AdminReviewsPage() {
   }
 
   const handlePageChange = (newPage: number) => {
-    if (newPage >= 0 && newPage < totalPages) {
+    if (newPage >= 1 && newPage <= totalPages) {
       fetchReviews(newPage, true)
     }
   }
@@ -335,8 +332,8 @@ export default function AdminReviewsPage() {
           <h1 className="text-3xl font-bold">Review Management</h1>
           <p className="text-muted-foreground">Loading reviews...</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-          {Array.from({ length: 5 }).map((_, i) => (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}>
               <CardContent className="p-6">
                 <div className="h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
@@ -363,7 +360,7 @@ export default function AdminReviewsPage() {
       </div>
 
       {/* Statistics Cards - Always visible */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Reviews</CardTitle>
@@ -375,29 +372,20 @@ export default function AdminReviewsPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Approved</CardTitle>
+            <CardTitle className="text-sm font-medium">Verified</CardTitle>
             <Check className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
+            <div className="text-2xl font-bold text-green-600">{stats.verified}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <CardTitle className="text-sm font-medium">Unverified</CardTitle>
             <TrendingUp className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rejected</CardTitle>
-            <X className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
+            <div className="text-2xl font-bold text-yellow-600">{stats.unverified}</div>
           </CardContent>
         </Card>
         <Card>
@@ -433,9 +421,8 @@ export default function AdminReviewsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="verified">Verified</SelectItem>
+                <SelectItem value="unverified">Unverified</SelectItem>
               </SelectContent>
             </Select>
             <Select value={ratingFilter} onValueChange={setRatingFilter}>
@@ -475,33 +462,35 @@ export default function AdminReviewsPage() {
         {reviewsLoading
           ? Array.from({ length: 5 }).map((_, i) => <ReviewSkeleton key={i} />)
           : filteredReviews.map((review) => (
-              <Card key={review.idReview}>
+              <Card key={review.id}>
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between">
                     <div className="flex space-x-4 flex-1">
                       <Avatar>
-                        <AvatarImage src={review.urlUser || "/Placeholder.png"} alt={review.nameUser} />
-                        <AvatarFallback>{review.nameUser.charAt(0)}</AvatarFallback>
+                        <AvatarImage src={review.userImage || defaultUserImage} alt={review.userName} />
+                        <AvatarFallback>
+                          <User className="h-4 w-4" />
+                        </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center space-x-2">
-                          <h3 className="font-semibold">{review.nameUser}</h3>
+                          <h3 className="font-semibold">{review.userName}</h3>
                           <span className="text-sm text-muted-foreground">•</span>
-                          <span className="text-sm text-muted-foreground">{review.emailUser}</span>
+                          <span className="text-sm text-muted-foreground">for {review.productName}</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <div className="flex">{renderStars(review.rating)}</div>
-                          <span className="text-sm text-muted-foreground">for {review.nameProduct}</span>
+                          <span className="text-sm text-muted-foreground">({review.rating}/5)</span>
                         </div>
-                        <h4 className="font-medium">{review.title}</h4>
                         <p className="text-sm text-muted-foreground line-clamp-3">{review.comment}</p>
                         <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                           <span>{new Date(review.createdAt).toLocaleDateString()}</span>
+                          <span>ID: {review.id.slice(0, 8)}...</span>
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      {getStatusBadge(review.isApproved)}
+                      {getStatusBadge(review.isVerified)}
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button variant="outline" size="sm" onClick={() => setSelectedReview(review)}>
@@ -516,62 +505,63 @@ export default function AdminReviewsPage() {
                           {selectedReview && (
                             <div className="space-y-4">
                               <div className="flex items-center space-x-4">
-                                <img
-                                  src={selectedReview.UrlProduct || "/Placeholder.png"}
-                                  alt={selectedReview.nameProduct}
-                                  className="w-16 h-16 object-cover rounded"
-                                />
+                                <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
+                                  <Package className="h-8 w-8 text-gray-400" />
+                                </div>
                                 <div>
-                                  <h3 className="font-semibold">{selectedReview.nameProduct}</h3>
+                                  <h3 className="font-semibold">{selectedReview.productName}</h3>
                                   <div className="flex">{renderStars(selectedReview.rating)}</div>
                                 </div>
                               </div>
                               <div className="space-y-2">
-                                <h4 className="font-medium">{selectedReview.title}</h4>
-                                <p className="text-sm">{selectedReview.comment}</p>
+                                <div className="flex items-center space-x-2">
+                                  <Avatar>
+                                    <AvatarImage src={selectedReview.userImage || defaultUserImage} alt={selectedReview.userName} />
+                                    <AvatarFallback>
+                                      <User className="h-4 w-4" />
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <h4 className="font-medium">{selectedReview.userName}</h4>
+                                    <p className="text-sm text-muted-foreground">User ID: {selectedReview.userId}</p>
+                                  </div>
+                                </div>
+                                <p className="text-sm border-l-4 border-gray-200 pl-4 py-2">{selectedReview.comment}</p>
                               </div>
                               <div className="grid grid-cols-2 gap-4 text-sm">
                                 <div>
-                                  <strong>User:</strong> {selectedReview.nameUser}
+                                  <strong>Review ID:</strong> {selectedReview.id}
                                 </div>
                                 <div>
-                                  <strong>Email:</strong> {selectedReview.emailUser}
+                                  <strong>Product ID:</strong> {selectedReview.productId}
                                 </div>
                                 <div>
                                   <strong>Created:</strong> {new Date(selectedReview.createdAt).toLocaleString()}
                                 </div>
                                 <div>
-                                  <strong>Status:</strong>{" "}
-                                  {selectedReview.isApproved === 2.0
-                                    ? "Approved"
-                                    : selectedReview.isApproved === 1.0
-                                      ? "Rejected"
-                                      : selectedReview.isApproved === 0.0
-                                        ? "Pending"
-                                        : "Unknown"}
+                                  <strong>Status:</strong> {selectedReview.isVerified === 1 ? "Verified" : "Unverified"}
                                 </div>
                               </div>
                               <div className="flex space-x-2">
-                                {selectedReview.isApproved === 0.0 && (
-                                  <>
-                                    <Button
-                                      onClick={() => handleApproveReview(selectedReview.idReview)}
-                                      className="bg-green-600 hover:bg-green-700"
-                                    >
-                                      <Check className="h-4 w-4 mr-2" />
-                                      Approve
-                                    </Button>
-                                    <Button
-                                      variant="destructive"
-                                      onClick={() => handleDisagreeReview(selectedReview.idReview)}
-                                    >
-                                      <X className="h-4 w-4 mr-2" />
-                                      Reject
-                                    </Button>
-                                  </>
+                                {selectedReview.isVerified === 0 ? (
+                                  <Button
+                                    onClick={() => handleVerifyReview(selectedReview.id)}
+                                    className="bg-green-600 hover:bg-green-700"
+                                  >
+                                    <Check className="h-4 w-4 mr-2" />
+                                    Verify
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => handleUnverifyReview(selectedReview.id)}
+                                  >
+                                    <X className="h-4 w-4 mr-2" />
+                                    Unverify
+                                  </Button>
                                 )}
                                 {userRole === "SUPER_ADMIN" && (
-                                  <Button variant="outline" onClick={() => handleDeleteReview(selectedReview.idReview)}>
+                                  <Button variant="outline" onClick={() => handleDeleteReview(selectedReview.id)}>
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
                                 )}
@@ -580,22 +570,21 @@ export default function AdminReviewsPage() {
                           )}
                         </DialogContent>
                       </Dialog>
-                      {review.isApproved === 0.0 && (
-                        <>
-                          <Button
-                            size="sm"
-                            onClick={() => handleApproveReview(review.idReview)}
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleDisagreeReview(review.idReview)}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </>
+                      {review.isVerified === 0 ? (
+                        <Button
+                          size="sm"
+                          onClick={() => handleVerifyReview(review.id)}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => handleUnverifyReview(review.id)}>
+                          <X className="h-4 w-4" />
+                        </Button>
                       )}
                       {userRole === "SUPER_ADMIN" && (
-                        <Button size="sm" variant="outline" onClick={() => handleDeleteReview(review.idReview)}>
+                        <Button size="sm" variant="outline" onClick={() => handleDeleteReview(review.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
@@ -610,7 +599,7 @@ export default function AdminReviewsPage() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {currentPage * pageSize + 1} to {Math.min((currentPage + 1) * pageSize, totalElements)} of{" "}
+            Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalElements)} of{" "}
             {totalElements} reviews
           </div>
           <div className="flex items-center space-x-2">
@@ -618,14 +607,14 @@ export default function AdminReviewsPage() {
               variant="outline"
               size="sm"
               onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 0 || reviewsLoading}
+              disabled={currentPage === 1 || reviewsLoading}
             >
               <ChevronLeft className="h-4 w-4" />
               Previous
             </Button>
             <div className="flex items-center space-x-1">
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                const pageNum = Math.max(0, Math.min(currentPage - 2 + i, totalPages - 1))
+                const pageNum = Math.max(1, Math.min(currentPage - 2 + i, totalPages))
                 return (
                   <Button
                     key={pageNum}
@@ -634,7 +623,7 @@ export default function AdminReviewsPage() {
                     onClick={() => handlePageChange(pageNum)}
                     disabled={reviewsLoading}
                   >
-                    {pageNum + 1}
+                    {pageNum}
                   </Button>
                 )
               })}
@@ -643,7 +632,7 @@ export default function AdminReviewsPage() {
               variant="outline"
               size="sm"
               onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage >= totalPages - 1 || reviewsLoading}
+              disabled={currentPage >= totalPages || reviewsLoading}
             >
               Next
               <ChevronRight className="h-4 w-4" />

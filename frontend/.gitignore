@@ -8,3 +8,10 @@ build
 coverage
 npm-debug.log*
 .next
+
+/Users/kiaakhalidgmail/Project/karkachiPhone-clean/frontend/components/product-grid.tsx
+/Users/kiaakhalidgmail/Project/karkachiPhone-clean/frontend/components/recommended-accessories.tsx
+/Users/kiaakhalidgmail/Project/karkachiPhone-clean/frontend/components/product-reviews.tsx
+/Users/kiaakhalidgmail/Project/karkachiPhone-clean/frontend/components/optimized-image.tsx
+/Users/kiaakhalidgmail/Project/karkachiPhone-clean/frontend/components/search-bar.tsx
+/Users/kiaakhalidgmail/Project/karkachiPhone-clean/frontend/components/nav-item.tsx

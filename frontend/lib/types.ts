@@ -1,27 +1,27 @@
 export interface Product {
-  id: string;
-  name: string;
-  description?: string;
-  shortDescription?: string | null;
-  price: number;
-  comparePrice?: string; 
-  savePrice?: string;
-  brand?: string;
-  category?: string | null;
-  stock: number;
-  rating?: number;
-  reviewCount?: number;
-  image?: string | null;
-  isOnPromotion?: boolean;
-  promotionEndDate?: string | null;
-  specs?: { name: string; value: string }[];
+  id: string
+  name: string
+  description?: string
+  shortDescription?: string | null
+  price: number
+  comparePrice?: number
+  savePrice?: string
+  brand?: string
+  category?: string | null
+  stock: number
+  rating?: number
+  reviewCount?: number
+  image?: string | null
+  isOnPromotion?: boolean
+  promotionEndDate?: string | null
+  specs?: { name: string; value: string }[]
 }
 
 export interface User {
   id: string
   email: string
   name: string
-  role: "user" | "admin"
+  role: "user" | "admin" | "super_admin"
   avatar?: string
   phone?: string
   address?: string
@@ -36,7 +36,7 @@ export interface CartItem {
   price: number
   image: string
   quantity: number
-  imei?: string // IMEI assigned by admin during order processing
+  imei?: string
 }
 
 export interface Order {
@@ -88,6 +88,35 @@ export interface AdminStats {
   conversionRate: number
   pendingOrders: number
   lowStockProducts: number
+}
+
+export interface AdminSettings {
+  siteName: string
+  siteDescription: string
+  contactEmail: string
+  contactPhone: string
+  address: string
+  currency: string
+  taxRate: number
+  shippingFee: number
+  enableRegistration: boolean
+  enableReviews: boolean
+  enableWishlist: boolean
+  enableNotifications: boolean
+  maintenanceMode: boolean
+  defaultLanguage: string
+  timezone: string
+  businessHours: string
+}
+
+export interface Analytics {
+  totalRevenue: number
+  totalOrders: number
+  totalUsers: number
+  totalProducts: number
+  monthlyRevenue: number[]
+  topProducts: { name: string; sales: number }[]
+  recentOrders: Order[]
 }
 
 export interface ContactMessage {

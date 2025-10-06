@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Star, Heart, Eye, Sparkles, Loader2 } from "lucide-react"
+import { Star, Heart, Eye, Sparkles, Loader2, Tag, Zap } from "lucide-react"
 import AddToCartButton from "@/components/add-to-cart-button"
 import { useWishlistApi } from "@/hooks/use-wishlist-api"
 import { useAuth } from "@/hooks/use-auth"
@@ -15,10 +15,21 @@ import LoginPopup from "@/components/login-popup"
 interface TopOrderedProductDto {
   id: string
   name: string
-  price: number
+  description?: string
+  price: string
+  originalPrice?: string
   image: string
-  rating: number
+  stock: number
+  rating: string
   reviewsCount: number
+  discount?: number | null
+  isNew?: boolean
+  isBestSeller?: boolean
+  isFlashDeal?: boolean
+  flashPrice?: string | null
+  isPromotional?: boolean
+  isProductphares?: boolean
+  isProductFlash?: boolean
 }
 
 function ProductSkeleton() {
@@ -59,7 +70,7 @@ export default function ProductsForYouSection() {
   const { isAuthenticated } = useAuth()
   const [showLoginPopup, setShowLoginPopup] = useState(false)
   const [pendingWishlistProductId, setPendingWishlistProductId] = useState<string | null>(null)
-  const urlBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+  const urlBase = process.env.NEXT_PUBLIC_API_URL
 
   useEffect(() => {
     const fetchTopOrderedProducts = async () => {
@@ -107,6 +118,15 @@ export default function ProductsForYouSection() {
     }
   }
 
+  const getDisplayPrice = (product: TopOrderedProductDto) => {
+    if (product.isFlashDeal && product.flashPrice) {
+      return parseFloat(product.flashPrice)
+    }
+    return parseFloat(product.price)
+  }
+
+  const getRatingNum = (product: TopOrderedProductDto) => parseFloat(product.rating)
+
   return (
     <section className="py-16 sm:py-20 lg:py-24 bg-gradient-to-b from-blue-50/30 via-indigo-50/40 to-purple-50/30 dark:from-gray-800 dark:via-gray-900 dark:to-indigo-900/10">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -144,6 +164,12 @@ export default function ProductsForYouSection() {
                 const productId = product.id
                 const isWishlisted = isInWishlist(productId)
                 const wishlistLoading = isWishlistLoading(productId)
+                const displayPrice = getDisplayPrice(product)
+                const ratingNum = getRatingNum(product)
+                const hasDiscount = product.discount && product.discount > 0
+                const showNewBadge = product.isNew
+                const showBestSellerBadge = product.isBestSeller
+                const showFlashBadge = product.isFlashDeal
 
                 return (
                   <Card
@@ -160,6 +186,36 @@ export default function ProductsForYouSection() {
                           alt={product.name}
                           className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
                         />
+
+                        {/* Badges for promotions */}
+                        <div className="absolute top-3 left-3 space-y-1">
+                          {showNewBadge && (
+                            <Badge variant="secondary" className="bg-green-500 text-white text-xs px-2 py-1">
+                              <Tag className="w-3 h-3 mr-1" />
+                              Nouveau
+                            </Badge>
+                          )}
+                          {showBestSellerBadge && (
+                            <Badge variant="secondary" className="bg-yellow-500 text-white text-xs px-2 py-1">
+                              <Sparkles className="w-3 h-3 mr-1" />
+                              Best-seller
+                            </Badge>
+                          )}
+                          {showFlashBadge && (
+                            <Badge variant="secondary" className="bg-orange-500 text-white text-xs px-2 py-1">
+                              <Zap className="w-3 h-3 mr-1" />
+                              Flash
+                            </Badge>
+                          )}
+                        </div>
+
+                        {hasDiscount && (
+                          <div className="absolute top-3 right-3">
+                            <Badge variant="destructive" className="bg-red-500 text-white text-xs px-2 py-1">
+                              -{product.discount}%
+                            </Badge>
+                          </div>
+                        )}
 
                         <div className="absolute bottom-3 right-3 flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                           <Button
@@ -207,7 +263,7 @@ export default function ProductsForYouSection() {
                               <Star
                                 key={i}
                                 className={`w-3 h-3 ${
-                                  i < Math.floor(product.rating) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
+                                  i < Math.floor(ratingNum) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
                                 }`}
                               />
                             ))}
@@ -217,7 +273,12 @@ export default function ProductsForYouSection() {
 
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center space-x-1">
-                            <span className="text-lg font-bold text-foreground">{product.price} MAD</span>
+                            <span className="text-lg font-bold text-foreground">{displayPrice.toFixed(2)} MAD</span>
+                            {product.originalPrice && (
+                              <span className="text-sm text-muted-foreground line-through ml-2">
+                                {parseFloat(product.originalPrice).toFixed(2)} MAD
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -225,10 +286,10 @@ export default function ProductsForYouSection() {
                           product={{
                             id: product.id,
                             name: product.name,
-                            price: product.price,
+                            price: displayPrice,
                             image: product.image,
                             category: undefined,
-                            stock: 100, // Stock par défaut
+                            stock: product.stock,
                           }}
                           variant="compact"
                           className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white text-xs shadow-md hover:shadow-lg"

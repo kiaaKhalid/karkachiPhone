@@ -13,113 +13,26 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { HeartCrack, Filter, Heart, TrendingUp, Package, Star, ShoppingBag, Trash2 } from "lucide-react"
 
-interface WishlistItemDTO {
-  id: number
-  productId: number
+interface WishlistItem {
+  id: string
   name: string
-  slug: string
-  brand: string
-  brandSlug: string
-  category: string
-  categorySlug: string
-  price: number
-  originalPrice: number
-  discount: number
-  discountPercentage: number
-  currency: string
+  description: string
   image: string
-  images: string[]
-  rating: number
-  reviewCount: number
-  stock: number
-  inStock: boolean
-  specifications: Record<string, string>
-  variants: ProductVariantDTO[]
-  addedAt: string
-  priceHistory: PriceHistoryDTO[]
-  isOnSale: boolean
-  saleEndDate: string
-  notifications: NotificationsDTO
-  tags: string[]
-  restockDate: string
-  removedAt: string
-}
-
-interface ProductVariantDTO {
-  color: string
-  colorCode: string
-  storage: string
   price: number
+  priceOriginal: number
   stock: number
+  isAvailable: boolean
 }
 
-interface PriceHistoryDTO {
-  price: number
-  date: string
-}
-
-interface NotificationsDTO {
-  priceChange: boolean
-  stockAlert: boolean
-  targetPrice: number
-}
-
-interface WishlistSummaryDTO {
-  totalItems: number
-  totalValue: number
-  totalSavings: number
-  averageRating: number
-  inStockItems: number
-  outOfStockItems: number
-  onSaleItems: number
-  currency: string
-}
-
-interface CategoryCountDTO {
-  slug: string
-  name: string
-  count: number
-}
-
-interface BrandCountDTO {
-  slug: string
-  name: string
-  count: number
-}
-
-interface PriceRangeDTO {
-  min: number
-  max: number
-}
-
-interface WishlistFiltersDTO {
-  categories: CategoryCountDTO[]
-  brands: BrandCountDTO[]
-  priceRange: PriceRangeDTO
-}
-
-interface PaginationDTO {
-  page: number
-  limit: number
-  totalItems: number
-  totalPages: number
-  hasNext: boolean
-  hasPrev: boolean
-}
-
-interface WishlistDTO {
-  id: number
-  userId: number
-  items: WishlistItemDTO[]
-  pagination: PaginationDTO
-  summary: WishlistSummaryDTO
-  filters: WishlistFiltersDTO
-  updatedAt: string
-}
-
-interface WishlistResponseDTO {
+interface WishlistResponse {
   success: boolean
-  wishlist: WishlistDTO
+  message: string
+  data: {
+    items: WishlistItem[]
+    total: number
+    page: number
+    limit: number
+  }
 }
 
 interface WishlistFilters {
@@ -127,16 +40,10 @@ interface WishlistFilters {
   limit: number
   sortBy: string
   sortOrder: string
-  category?: string
-  brand?: string
-  priceMin?: number
-  priceMax?: number
-  inStock?: boolean
-  onSale?: boolean
 }
 
 export default function WishlistPage() {
-  const [wishlistData, setWishlistData] = useState<WishlistDTO | null>(null)
+  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [clearingWishlist, setClearingWishlist] = useState(false)
@@ -145,11 +52,15 @@ export default function WishlistPage() {
   const [filters, setFilters] = useState<WishlistFilters>({
     page: 1,
     limit: 20,
-    sortBy: "addedAt",
-    sortOrder: "desc",
+    sortBy: "name",
+    sortOrder: "asc",
   })
 
   const [showFilters, setShowFilters] = useState(false)
+  const [totalItems, setTotalItems] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
+
+  const url = process.env.NEXT_PUBLIC_API_URL
 
   const fetchWishlist = async () => {
     try {
@@ -159,20 +70,11 @@ export default function WishlistPage() {
       const params = new URLSearchParams({
         page: filters.page.toString(),
         limit: filters.limit.toString(),
-        sortBy: filters.sortBy,
-        sortOrder: filters.sortOrder,
       })
-
-      if (filters.category) params.append("category", filters.category)
-      if (filters.brand) params.append("brand", filters.brand)
-      if (filters.priceMin) params.append("priceMin", filters.priceMin.toString())
-      if (filters.priceMax) params.append("priceMax", filters.priceMax.toString())
-      if (filters.inStock !== undefined) params.append("inStock", filters.inStock.toString())
-      if (filters.onSale !== undefined) params.append("onSale", filters.onSale.toString())
 
       const token = localStorage.getItem("auth_token")
 
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/wishlist?${params}`, {
+      const response = await fetch(`${url}/person/product/wishlist?${params}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -184,10 +86,12 @@ export default function WishlistPage() {
         throw new Error("Failed to fetch wishlist")
       }
 
-      const data: WishlistResponseDTO = await response.json()
+      const data: WishlistResponse = await response.json()
 
       if (data.success) {
-        setWishlistData(data.wishlist)
+        setWishlistItems(data.data.items)
+        setTotalItems(data.data.total)
+        setTotalPages(Math.ceil(data.data.total / filters.limit))
       } else {
         throw new Error("Failed to load wishlist")
       }
@@ -209,17 +113,17 @@ export default function WishlistPage() {
 
       const token = localStorage.getItem("auth_token")
 
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/wishlist/clear`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      // Supprimer chaque élément individuellement
+      const deletePromises = wishlistItems.map(item =>
+        fetch(`${url}/person/product/wishlist/${item.id}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+      )
 
-      if (!response.ok) {
-        throw new Error("Failed to clear wishlist")
-      }
-
+      await Promise.all(deletePromises)
       await fetchWishlist()
       toast({
         title: "Success",
@@ -236,11 +140,11 @@ export default function WishlistPage() {
     }
   }
 
-  const handleRemoveFromWishlist = async (productId: number) => {
+  const handleRemoveFromWishlist = async (productId: string) => {
     try {
       const token = localStorage.getItem("auth_token")
 
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/wishlist/remove/${productId}`, {
+      const response = await fetch(`${url}/person/product/wishlist/${productId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -276,6 +180,17 @@ export default function WishlistPage() {
   useEffect(() => {
     fetchWishlist()
   }, [filters])
+
+  // Calcul des statistiques
+  const stats = {
+    totalItems,
+    totalValue: wishlistItems.reduce((sum, item) => sum + item.price, 0),
+    totalSavings: wishlistItems.reduce((sum, item) => sum + (item.priceOriginal - item.price), 0),
+    averageRating: 0, // Non disponible dans la nouvelle API
+    inStockItems: wishlistItems.filter(item => item.isAvailable).length,
+    outOfStockItems: wishlistItems.filter(item => !item.isAvailable).length,
+    onSaleItems: wishlistItems.filter(item => item.price < item.priceOriginal).length,
+  }
 
   if (loading || error) {
     return (
@@ -313,7 +228,7 @@ export default function WishlistPage() {
     )
   }
 
-  if (!wishlistData || !wishlistData.items || wishlistData.items.length === 0) {
+  if (!wishlistItems || wishlistItems.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/5">
         <div className="relative overflow-hidden bg-gradient-to-r from-primary via-accent to-primary/80 text-primary-foreground">
@@ -376,8 +291,8 @@ export default function WishlistPage() {
             <div className="space-y-2">
               <h1 className="text-4xl md:text-5xl font-bold tracking-tight">Your Personal Collection</h1>
               <p className="text-lg text-primary-foreground/80 max-w-md mx-auto">
-                {wishlistData.summary.totalItems} carefully curated items worth {wishlistData.summary.currency}{" "}
-                {wishlistData.summary.totalValue.toFixed(2)}
+                {stats.totalItems} carefully curated items worth MAD{" "}
+                {stats.totalValue.toFixed(2)}
               </p>
             </div>
 
@@ -386,7 +301,7 @@ export default function WishlistPage() {
                 <div className="inline-flex items-center justify-center w-12 h-12 bg-white/20 rounded-lg mb-3">
                   <Package className="h-6 w-6" />
                 </div>
-                <div className="text-2xl font-bold">{wishlistData.summary.inStockItems}</div>
+                <div className="text-2xl font-bold">{stats.inStockItems}</div>
                 <div className="text-sm text-primary-foreground/70">In Stock</div>
               </div>
 
@@ -394,7 +309,7 @@ export default function WishlistPage() {
                 <div className="inline-flex items-center justify-center w-12 h-12 bg-white/20 rounded-lg mb-3">
                   <TrendingUp className="h-6 w-6" />
                 </div>
-                <div className="text-2xl font-bold">{wishlistData.summary.onSaleItems}</div>
+                <div className="text-2xl font-bold">{stats.onSaleItems}</div>
                 <div className="text-sm text-primary-foreground/70">On Sale</div>
               </div>
 
@@ -402,8 +317,8 @@ export default function WishlistPage() {
                 <div className="inline-flex items-center justify-center w-12 h-12 bg-white/20 rounded-lg mb-3">
                   <Star className="h-6 w-6" />
                 </div>
-                <div className="text-2xl font-bold">{wishlistData.summary.averageRating.toFixed(1)}</div>
-                <div className="text-sm text-primary-foreground/70">Avg Rating</div>
+                <div className="text-2xl font-bold">{stats.totalItems}</div>
+                <div className="text-sm text-primary-foreground/70">Total Items</div>
               </div>
 
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center hover:bg-white/15 transition-colors">
@@ -411,7 +326,7 @@ export default function WishlistPage() {
                   <TrendingUp className="h-6 w-6" />
                 </div>
                 <div className="text-2xl font-bold">
-                  {wishlistData.summary.currency} {wishlistData.summary.totalSavings.toFixed(0)}
+                  MAD {stats.totalSavings.toFixed(0)}
                 </div>
                 <div className="text-sm text-primary-foreground/70">Total Savings</div>
               </div>
@@ -452,7 +367,7 @@ export default function WishlistPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Sort Options */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Sort By</Label>
@@ -467,77 +382,31 @@ export default function WishlistPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="addedAt-desc">Recently Added</SelectItem>
-                      <SelectItem value="addedAt-asc">Oldest First</SelectItem>
-                      <SelectItem value="price-asc">Price: Low to High</SelectItem>
-                      <SelectItem value="price-desc">Price: High to Low</SelectItem>
                       <SelectItem value="name-asc">Name: A to Z</SelectItem>
                       <SelectItem value="name-desc">Name: Z to A</SelectItem>
+                      <SelectItem value="price-asc">Price: Low to High</SelectItem>
+                      <SelectItem value="price-desc">Price: High to Low</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* Category Filter */}
+                {/* Items per page */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Category</Label>
+                  <Label className="text-sm font-medium">Items per page</Label>
                   <Select
-                    value={filters.category || "all"}
-                    onValueChange={(value) => updateFilters({ category: value === "all" ? undefined : value })}
+                    value={filters.limit.toString()}
+                    onValueChange={(value) => updateFilters({ limit: parseInt(value) })}
                   >
                     <SelectTrigger className="bg-background/50">
-                      <SelectValue placeholder="All Categories" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      {wishlistData.filters.categories.map((category) => (
-                        <SelectItem key={category.slug} value={category.slug}>
-                          {category.name} ({category.count})
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="12">12 items</SelectItem>
+                      <SelectItem value="20">20 items</SelectItem>
+                      <SelectItem value="32">32 items</SelectItem>
+                      <SelectItem value="48">48 items</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-
-                {/* Brand Filter */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Brand</Label>
-                  <Select
-                    value={filters.brand || "all"}
-                    onValueChange={(value) => updateFilters({ brand: value === "all" ? undefined : value })}
-                  >
-                    <SelectTrigger className="bg-background/50">
-                      <SelectValue placeholder="All Brands" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Brands</SelectItem>
-                      {wishlistData.filters.brands.map((brand) => (
-                        <SelectItem key={brand.slug} value={brand.slug}>
-                          {brand.name} ({brand.count})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Price Range */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Price Range</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      placeholder="Min"
-                      className="bg-background/50"
-                      value={filters.priceMin || ""}
-                      onChange={(e) => updateFilters({ priceMin: e.target.value ? Number(e.target.value) : undefined })}
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Max"
-                      className="bg-background/50"
-                      value={filters.priceMax || ""}
-                      onChange={(e) => updateFilters({ priceMax: e.target.value ? Number(e.target.value) : undefined })}
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -545,21 +414,14 @@ export default function WishlistPage() {
                 <div className="flex items-center space-x-3">
                   <Switch
                     id="inStock"
-                    checked={filters.inStock || false}
-                    onCheckedChange={(checked) => updateFilters({ inStock: checked ? true : undefined })}
+                    checked={filters.sortBy === "availability"}
+                    onCheckedChange={(checked) => updateFilters({ 
+                      sortBy: checked ? "availability" : "name",
+                      sortOrder: "desc"
+                    })}
                   />
                   <Label htmlFor="inStock" className="text-sm font-medium">
-                    In Stock Only
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <Switch
-                    id="onSale"
-                    checked={filters.onSale || false}
-                    onCheckedChange={(checked) => updateFilters({ onSale: checked ? true : undefined })}
-                  />
-                  <Label htmlFor="onSale" className="text-sm font-medium">
-                    On Sale Only
+                    Show Available First
                   </Label>
                 </div>
               </div>
@@ -568,57 +430,66 @@ export default function WishlistPage() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {wishlistData.items.map((item) => (
-            <ProductCard
-              key={item.id}
-              product={{
-                id: item.productId,
-                name: item.name,
-                price: item.price,
-                originalPrice: item.originalPrice,
-                image: item.image,
-                images: item.images,
-                rating: item.rating,
-                reviewCount: item.reviewCount,
-                brand: item.brand,
-                category: item.category,
-                inStock: item.inStock,
-                isOnSale: item.isOnSale,
-                discount: item.discountPercentage,
-                slug: item.slug,
-              }}
-              onRemoveFromWishlist={() => handleRemoveFromWishlist(item.productId)}
-              showWishlistDate={true}
-              wishlistDate={item.addedAt}
-            />
+          {wishlistItems.map((item) => (
+            <div key={item.id} className="relative group">
+              <ProductCard
+                product={{
+                  id: item.id,
+                  name: item.name,
+                  description: item.description,
+                  price: item.price,
+                  comparePrice: item.priceOriginal > item.price ? item.priceOriginal : undefined,
+                  savePrice: item.priceOriginal > item.price ? (item.priceOriginal - item.price).toString() : undefined,
+                  brand: "",
+                  category: "",
+                  stock: item.stock,
+                  rating: 0, // Non disponible dans la nouvelle API
+                  reviewCount: 0, // Non disponible dans la nouvelle API
+                  image: item.image,
+                  isOnPromotion: item.price < item.priceOriginal,
+                }}
+              />
+              {/* Bouton de suppression overlay */}
+              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="w-8 h-8 p-0 bg-red-600 hover:bg-red-700 shadow-lg"
+                  onClick={() => handleRemoveFromWishlist(item.id)}
+                  title="Remove from wishlist"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
           ))}
         </div>
 
-        {wishlistData.pagination.totalPages > 1 && (
+        {totalPages > 1 && (
           <div className="flex justify-center items-center gap-3 mt-12 pt-8 border-t border-border/50">
             <Button
               variant="outline"
               size="lg"
-              onClick={() => handlePageChange(wishlistData.pagination.page - 1)}
-              disabled={!wishlistData.pagination.hasPrev}
+              onClick={() => handlePageChange(filters.page - 1)}
+              disabled={filters.page === 1}
               className="bg-card/50 backdrop-blur-sm"
             >
               Previous
             </Button>
 
             <div className="flex gap-2">
-              {Array.from({ length: Math.min(5, wishlistData.pagination.totalPages) }, (_, i) => {
-                const pageNum = Math.max(1, wishlistData.pagination.page - 2) + i
-                if (pageNum > wishlistData.pagination.totalPages) return null
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const pageNum = Math.max(1, filters.page - 2) + i
+                if (pageNum > totalPages) return null
 
                 return (
                   <Button
                     key={pageNum}
-                    variant={pageNum === wishlistData.pagination.page ? "default" : "outline"}
+                    variant={pageNum === filters.page ? "default" : "outline"}
                     size="sm"
                     onClick={() => handlePageChange(pageNum)}
                     className={
-                      pageNum === wishlistData.pagination.page
+                      pageNum === filters.page
                         ? "bg-accent hover:bg-accent/90"
                         : "bg-card/50 backdrop-blur-sm"
                     }
@@ -632,8 +503,8 @@ export default function WishlistPage() {
             <Button
               variant="outline"
               size="lg"
-              onClick={() => handlePageChange(wishlistData.pagination.page + 1)}
-              disabled={!wishlistData.pagination.hasNext}
+              onClick={() => handlePageChange(filters.page + 1)}
+              disabled={filters.page >= totalPages}
               className="bg-card/50 backdrop-blur-sm"
             >
               Next

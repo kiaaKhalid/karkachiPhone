@@ -18,120 +18,136 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts"
-import { DollarSign, Package, Users, ShoppingCart } from "lucide-react"
+import { DollarSign, Package, Users, ShoppingCart, TrendingUp, TrendingDown } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 
-interface DashboardResponse {
-  totalOrders: number
-  totalRevenue: number
-  totalClients: number
-  totalProducts: number
-  dailySummaries: DailySummary[]
+interface AnalyticsStaticResponse {
+  success: boolean
+  message: string
+  data: {
+    period: string
+    revenue: {
+      amount: number
+      growth: number
+    }
+    orders: number
+    customers: {
+      total: number
+      new: number
+    }
+    products: number
+    range: {
+      from: string
+      to: string
+    }
+  }
 }
 
-interface DailySummary {
-  date: string
-  orders: number
-  revenue: number
-  clients: number
-  totalProducts: number
+interface AnalyticsGraphResponse {
+  success: boolean
+  message: string
+  data: {
+    period: string
+    revenueTrends: RevenueTrend[]
+    topSellingProducts: TopSellingProduct[]
+    customerDemographics: any[]
+    orderStatusDistribution: OrderStatusDistribution[]
+    range: {
+      from: string
+      to: string
+    }
+  }
 }
 
-interface TopSellingProductDTO {
-  id: number
+interface ProductImageResponse {
+  success: boolean
+  message: string
+  data: {
+    image: string
+  }
+}
+
+interface RevenueTrend {
+  day: string
+  amount: number
+}
+
+interface TopSellingProduct {
+  id: string
   name: string
-  imageUrl: string
-  totalQuantity: number
-  totalRevenue: number
-  categoryName: string
-  brandName: string
+  quantity: number
+  imageUrl?: string // Nous allons récupérer cette donnée
 }
 
-interface CustomerAnalyticsDTO {
-  totalCustomers: number
-  newCustomers: number
-  returningCustomers: number
-  demographics: CustomerDemographicDTO[]
-  locations: CustomerLocationDTO[]
-}
-
-interface CustomerDemographicDTO {
-  ageGroup: string
-  count: number
-  percentage: number
-}
-
-interface CustomerLocationDTO {
-  city: string
-  region: string
-  customerCount: number
-  revenue: number
-}
-
-interface RevenueTrendDTO {
-  period: string
-  revenue: number
-  orders: number
-  growth: number
-}
-
-interface OrderAnalyticDTO {
-  totalOrders: number
-  pendingOrders: number
-  completedOrders: number
-  cancelledOrders: number
-  completionRate: number
-  cancellationRate: number
-  statusDistribution: OrderStatusDistributionDTO[]
-}
-
-interface OrderStatusDistributionDTO {
+interface OrderStatusDistribution {
   status: string
   count: number
-  percentage: number
+}
+
+enum AnalyticsPeriod {
+  LAST_7_DAYS = 'last7days',
+  LAST_30_DAYS = 'last30days',
+  LAST_90_DAYS = 'last90days',
+  LAST_YEAR = 'lastYear',
 }
 
 export default function AnalyticsPage() {
-  const [timeRange, setTimeRange] = useState("30")
+  const [timeRange, setTimeRange] = useState<AnalyticsPeriod>(AnalyticsPeriod.LAST_30_DAYS)
   const { toast } = useToast()
 
-  const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null)
-  const [topProducts, setTopProducts] = useState<TopSellingProductDTO[]>([])
-  const [customerAnalytics, setCustomerAnalytics] = useState<CustomerAnalyticsDTO | null>(null)
-  const [revenueTrends, setRevenueTrends] = useState<RevenueTrendDTO[]>([])
-  const [orderAnalytics, setOrderAnalytics] = useState<OrderAnalyticDTO | null>(null)
+  const [staticData, setStaticData] = useState<AnalyticsStaticResponse['data'] | null>(null)
+  const [graphData, setGraphData] = useState<AnalyticsGraphResponse['data'] | null>(null)
+  const [productImages, setProductImages] = useState<{[key: string]: string}>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const url = process.env.NEXT_PUBLIC_API_URL
 
-  const fetchDashboardData = async () => {
+  // Fonction pour récupérer l'image d'un produit
+  const fetchProductImage = async (productId: string): Promise<string> => {
     try {
-      const token = localStorage.getItem("auth_token")
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/analytics/dashboard?dateRange=${timeRange}days`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `${url}/public/products/${productId}/image`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
-      })
+      )
 
       if (!response.ok) {
-        throw new Error("Failed to fetch dashboard data")
+        throw new Error("Failed to fetch product image")
       }
 
-      const data = await response.json()
-      setDashboardData(data)
+      const data: ProductImageResponse = await response.json()
+      return data.data.image
     } catch (err) {
-      console.error("Error fetching dashboard data:", err)
-      setError("Failed to load dashboard data")
-
+      console.error(`Error fetching image for product ${productId}:`, err)
+      return "/placeholder.png"
     }
   }
 
-  const fetchTopProducts = async () => {
+  // Fonction pour récupérer toutes les images des produits top
+  const fetchTopProductsImages = async (products: TopSellingProduct[]) => {
+    const imagePromises = products.map(async (product) => {
+      const imageUrl = await fetchProductImage(product.id)
+      return { id: product.id, imageUrl }
+    })
+
+    const images = await Promise.all(imagePromises)
+    const imageMap: {[key: string]: string} = {}
+    images.forEach(({ id, imageUrl }) => {
+      imageMap[id] = imageUrl
+    })
+    setProductImages(imageMap)
+  }
+
+  const fetchStaticData = async () => {
     try {
       const token = localStorage.getItem("auth_token")
       const response = await fetch(
-        `https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/analytics/products/top-selling?days=${timeRange}&limit=10`,
+        `${url}/admin/analytics/static?period=${timeRange}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -141,76 +157,44 @@ export default function AnalyticsPage() {
       )
 
       if (!response.ok) {
-        throw new Error("Failed to fetch top products")
+        throw new Error("Failed to fetch static analytics data")
       }
 
-      const data = await response.json()
-      setTopProducts(data)
+      const data: AnalyticsStaticResponse = await response.json()
+      setStaticData(data.data)
     } catch (err) {
-      console.error("Error fetching top products:", err)
+      console.error("Error fetching static analytics data:", err)
+      throw err
     }
   }
 
-  const fetchCustomerAnalytics = async () => {
+  const fetchGraphData = async () => {
     try {
       const token = localStorage.getItem("auth_token")
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/analytics/customers?days=${timeRange}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `${url}/admin/analytics/graph?period=${timeRange}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
         },
-      })
+      )
 
       if (!response.ok) {
-        throw new Error("Failed to fetch customer analytics")
+        throw new Error("Failed to fetch graph analytics data")
       }
 
-      const data = await response.json()
-      setCustomerAnalytics(data)
-    } catch (err) {
-      console.error("Error fetching customer analytics:", err)
-    }
-  }
-
-  const fetchRevenueTrends = async () => {
-    try {
-      const token = localStorage.getItem("auth_token")
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/analytics/revenue/trends?days=${timeRange}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch revenue trends")
+      const data: AnalyticsGraphResponse = await response.json()
+      setGraphData(data.data)
+      
+      // Récupérer les images pour les produits top
+      if (data.data.topSellingProducts.length > 0) {
+        await fetchTopProductsImages(data.data.topSellingProducts)
       }
-
-      const data = await response.json()
-      setRevenueTrends(data)
     } catch (err) {
-      console.error("Error fetching revenue trends:", err)
-    }
-  }
-
-  const fetchOrderAnalytics = async () => {
-    try {
-      const token = localStorage.getItem("auth_token")
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/analytics/orders?days=${timeRange}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch order analytics")
-      }
-
-      const data = await response.json()
-      setOrderAnalytics(data)
-    } catch (err) {
-      console.error("Error fetching order analytics:", err)
+      console.error("Error fetching graph analytics data:", err)
+      throw err
     }
   }
 
@@ -220,11 +204,8 @@ export default function AnalyticsPage() {
 
     try {
       await Promise.all([
-        fetchDashboardData(),
-        fetchTopProducts(),
-        fetchCustomerAnalytics(),
-        fetchRevenueTrends(),
-        fetchOrderAnalytics(),
+        fetchStaticData(),
+        fetchGraphData(),
       ])
     } catch (err) {
       setError("Failed to load analytics data")
@@ -242,32 +223,63 @@ export default function AnalyticsPage() {
     fetchAllData()
   }, [timeRange])
 
-  const calculateGrowth = (current: number, previous: number): string => {
-    if (previous === 0) return current > 0 ? "+100%" : "0%"
-    const growth = ((current - previous) / previous) * 100
-    return `${growth >= 0 ? "+" : ""}${growth.toFixed(1)}%`
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+    }).format(amount)
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "completed":
+      case "delivered":
+        return "#00C49F"
+      case "pending":
+        return "#FFBB28"
+      case "processing":
+      case "confirmed":
+        return "#0088FE"
+      case "cancelled":
+        return "#FF8042"
+      case "shipped":
+        return "#8884D8"
+      default:
+        return "#8884D8"
+    }
   }
 
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"]
 
   return (
-    <div className="container mx-auto py-8">
+    <div className="container mx-auto -mt-10">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
-        <Select value={timeRange} onValueChange={setTimeRange}>
+        <Select 
+          value={timeRange} 
+          onValueChange={(value: AnalyticsPeriod) => setTimeRange(value)}
+        >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select time range" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="7">Last 7 Days</SelectItem>
-            <SelectItem value="30">Last 30 Days</SelectItem>
-            <SelectItem value="90">Last 90 Days</SelectItem>
-            <SelectItem value="365">Last Year</SelectItem>
+            <SelectItem value={AnalyticsPeriod.LAST_7_DAYS}>Last 7 Days</SelectItem>
+            <SelectItem value={AnalyticsPeriod.LAST_30_DAYS}>Last 30 Days</SelectItem>
+            <SelectItem value={AnalyticsPeriod.LAST_90_DAYS}>Last 90 Days</SelectItem>
+            <SelectItem value={AnalyticsPeriod.LAST_YEAR}>Last Year</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
+      {/* Stats Cards */}
       <div className="grid gap-6 md:grid-cols-4 mb-8">
+        {/* Total Revenue Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
@@ -278,21 +290,30 @@ export default function AnalyticsPage() {
               <Skeleton className="h-8 w-24" />
             ) : (
               <>
-                <div className="text-2xl font-bold">${dashboardData?.totalRevenue?.toLocaleString() || "0"}</div>
-                <p className="text-xs text-muted-foreground">
-                  {revenueTrends.length > 1
-                    ? calculateGrowth(
-                        revenueTrends[revenueTrends.length - 1]?.revenue || 0,
-                        revenueTrends[0]?.revenue || 0,
-                      )
-                    : "+0%"}{" "}
-                  from last period
-                </p>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(staticData?.revenue.amount || 0)}
+                </div>
+                <div className="flex items-center text-xs mt-1">
+                  {staticData?.revenue.growth !== undefined && (
+                    <>
+                      {staticData.revenue.growth >= 0 ? (
+                        <TrendingUp className="h-3 w-3 mr-1 text-green-600" />
+                      ) : (
+                        <TrendingDown className="h-3 w-3 mr-1 text-red-600" />
+                      )}
+                      <span className={staticData.revenue.growth >= 0 ? "text-green-600" : "text-red-600"}>
+                        {staticData.revenue.growth >= 0 ? "+" : ""}{staticData.revenue.growth.toFixed(1)}%
+                      </span>
+                    </>
+                  )}
+                  <span className="text-muted-foreground ml-1">from previous period</span>
+                </div>
               </>
             )}
           </CardContent>
         </Card>
 
+        {/* Total Orders Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
@@ -303,17 +324,16 @@ export default function AnalyticsPage() {
               <Skeleton className="h-8 w-24" />
             ) : (
               <>
-                <div className="text-2xl font-bold">{dashboardData?.totalOrders?.toLocaleString() || "0"}</div>
+                <div className="text-2xl font-bold">{staticData?.orders?.toLocaleString() || "0"}</div>
                 <p className="text-xs text-muted-foreground">
-                  {orderAnalytics?.completionRate
-                    ? `${orderAnalytics.completionRate.toFixed(1)}% completion rate`
-                    : "No data"}
+                  Orders in selected period
                 </p>
               </>
             )}
           </CardContent>
         </Card>
 
+        {/* Total Customers Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
@@ -324,13 +344,16 @@ export default function AnalyticsPage() {
               <Skeleton className="h-8 w-24" />
             ) : (
               <>
-                <div className="text-2xl font-bold">{customerAnalytics?.totalCustomers?.toLocaleString() || "0"}</div>
-                <p className="text-xs text-muted-foreground">{customerAnalytics?.newCustomers || 0} new customers</p>
+                <div className="text-2xl font-bold">{staticData?.customers.total?.toLocaleString() || "0"}</div>
+                <p className="text-xs text-muted-foreground">
+                  {staticData?.customers.new || 0} new customers
+                </p>
               </>
             )}
           </CardContent>
         </Card>
 
+        {/* Total Products Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Products</CardTitle>
@@ -341,7 +364,7 @@ export default function AnalyticsPage() {
               <Skeleton className="h-8 w-24" />
             ) : (
               <>
-                <div className="text-2xl font-bold">{dashboardData?.totalProducts?.toLocaleString() || "0"}</div>
+                <div className="text-2xl font-bold">{staticData?.products?.toLocaleString() || "0"}</div>
                 <p className="text-xs text-muted-foreground">Active products</p>
               </>
             )}
@@ -349,7 +372,9 @@ export default function AnalyticsPage() {
         </Card>
       </div>
 
+      {/* Charts Section */}
       <div className="grid gap-6 md:grid-cols-2 mb-8">
+        {/* Revenue Trends Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Revenue Trends</CardTitle>
@@ -360,19 +385,32 @@ export default function AnalyticsPage() {
               <Skeleton className="h-[300px] w-full" />
             ) : (
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={revenueTrends}>
+                <LineChart data={graphData?.revenueTrends || []}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="period" />
+                  <XAxis 
+                    dataKey="day" 
+                    tickFormatter={formatDate}
+                  />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip 
+                    formatter={(value: number) => [formatCurrency(value), 'Revenue']}
+                    labelFormatter={(label) => `Date: ${formatDate(label)}`}
+                  />
                   <Legend />
-                  <Line type="monotone" dataKey="revenue" stroke="#8884d8" strokeWidth={2} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="amount" 
+                    stroke="#8884d8" 
+                    strokeWidth={2}
+                    name="Revenue"
+                  />
                 </LineChart>
               </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
 
+        {/* Top Selling Products Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Top Selling Products</CardTitle>
@@ -383,13 +421,22 @@ export default function AnalyticsPage() {
               <Skeleton className="h-[300px] w-full" />
             ) : (
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={topProducts.slice(0, 5)}>
+                <BarChart data={graphData?.topSellingProducts.slice(0, 5) || []}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
+                  <XAxis 
+                    dataKey="name" 
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="totalQuantity" fill="#8884d8" />
+                  <Bar 
+                    dataKey="quantity" 
+                    fill="#8884d8" 
+                    name="Quantity Sold"
+                  />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -397,39 +444,9 @@ export default function AnalyticsPage() {
         </Card>
       </div>
 
+      {/* Additional Charts Section */}
       <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Customer Demographics</CardTitle>
-            <CardDescription>Breakdown of customers by age group.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-[300px] w-full" />
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={customerAnalytics?.demographics || []}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ ageGroup, percentage }) => `${ageGroup}: ${percentage?.toFixed(1)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="count"
-                  >
-                    {customerAnalytics?.demographics?.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
+        {/* Order Status Distribution */}
         <Card>
           <CardHeader>
             <CardTitle>Order Status Distribution</CardTitle>
@@ -442,17 +459,20 @@ export default function AnalyticsPage() {
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
-                    data={orderAnalytics?.statusDistribution || []}
+                    data={graphData?.orderStatusDistribution || []}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ status, percentage }) => `${status}: ${percentage?.toFixed(1)}%`}
+                    label={({ status, count }) => `${status}: ${count}`}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="count"
                   >
-                    {orderAnalytics?.statusDistribution?.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    {graphData?.orderStatusDistribution?.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={getStatusColor(entry.status)} 
+                      />
                     ))}
                   </Pie>
                   <Tooltip />
@@ -461,35 +481,91 @@ export default function AnalyticsPage() {
             )}
           </CardContent>
         </Card>
-      </div>
 
-      {!loading && topProducts.length > 0 && (
-        <Card className="mt-8">
+        {/* Top Products Details */}
+        <Card>
           <CardHeader>
-            <CardTitle>Top Selling Products Details</CardTitle>
+            <CardTitle>Top Selling Products</CardTitle>
             <CardDescription>Detailed view of your best performing products.</CardDescription>
           </CardHeader>
           <CardContent>
+            {loading ? (
+              <Skeleton className="h-[300px] w-full" />
+            ) : (
+              <div className="space-y-4 max-h-[300px] overflow-y-auto">
+                {graphData?.topSellingProducts.slice(0, 5).map((product, index) => (
+                  <div key={product.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="text-sm font-medium text-muted-foreground">#{index + 1}</div>
+                      {/* Image du produit */}
+                      <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                        <img
+                          src={productImages[product.id] || "/placeholder.png"}
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "/placeholder.png"
+                          }}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-sm line-clamp-1 text-gray-900 dark:text-white">
+                          {product.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          ID: {product.id.slice(0, 8)}...
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-medium text-gray-900 dark:text-white">{product.quantity} sold</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Full Top Products Table */}
+      {!loading && graphData && graphData.topSellingProducts.length > 0 && (
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle>Top Selling Products Details</CardTitle>
+            <CardDescription>Complete list of your best performing products.</CardDescription>
+          </CardHeader>
+          <CardContent>
             <div className="space-y-4">
-              {topProducts.slice(0, 10).map((product, index) => (
+              {graphData.topSellingProducts.map((product, index) => (
                 <div key={product.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="flex items-center space-x-4">
                     <div className="text-sm font-medium text-muted-foreground">#{index + 1}</div>
-                    <img
-                      src={product.imageUrl || "/Placeholder.png?height=40&width=40"}
-                      alt={product.name}
-                      className="w-10 h-10 rounded object-cover"
-                    />
-                    <div>
-                      <div className="font-medium">{product.name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {product.brandName} • {product.categoryName}
+                    {/* Image du produit */}
+                    <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                      <img
+                        src={productImages[product.id] || "/placeholder.png"}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "/placeholder.png"
+                        }}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-gray-900 dark:text-white truncate">
+                        {product.name}
+                      </div>
+                      <div className="text-sm text-muted-foreground truncate">
+                        ID: {product.id.slice(0, 8)}...
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-medium">{product.totalQuantity} sold</div>
-                    <div className="text-sm text-muted-foreground">${product.totalRevenue?.toLocaleString()}</div>
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      {product.quantity} units sold
+                    </div>
+                    <div className="text-sm text-muted-foreground">Rank #{index + 1}</div>
                   </div>
                 </div>
               ))}

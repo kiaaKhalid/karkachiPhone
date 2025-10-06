@@ -9,30 +9,35 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { AlertCircle, ChevronLeft, ChevronRight } from "lucide-react"
 
-interface DealResponse {
-  deals: Deal[]
-  page: number
-  size: number
-  totalElements: number
-  totalPages: number
+interface DealsResponse {
+  success: boolean
+  message: string
+  data: {
+    items: Deal[]
+    total: number
+    page: number
+    limit: number
+  }
 }
 
 interface Deal {
-  id: number
+  id: string
   name: string
-  brand: string
-  category: string
-  price: number
-  originalPrice: number
-  discountPercentage: number
-  savingsAmount: number
+  description: string
+  price: string
+  originalPrice: string
   image: string
-  rating: number
-  reviewCount: number
   stock: number
-  dealType: string
-  dealEndDate: string
-  timeRemaining: string
+  rating: string
+  reviewsCount: number
+  discount: number | null
+  isFlashDeal: boolean
+  flashPrice: string | null
+  flashStartsAt: string
+  flashEndsAt: string
+  flashStock: number | null
+  categoryId: string
+  brandId: string
 }
 
 function ProductSkeleton() {
@@ -82,29 +87,32 @@ export default function DealsPage() {
   const [page, setPage] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
 
-  const fetchDeals = async (pageNum = 0, category?: string, dealType?: string) => {
+  const fetchDeals = async (pageNum = 1, categoryId?: string, brandId?: string) => {
     try {
       setLoading(true)
       setError(null)
 
       const params = new URLSearchParams({
         page: pageNum.toString(),
-        size: "30",
+        limit: "30",
       })
 
-      if (category) params.append("category", category)
-      if (dealType) params.append("dealType", dealType)
+      if (categoryId) params.append("categoryId", categoryId)
+      if (brandId) params.append("brandId", brandId)
 
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/products/deals?${params}`)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/public/products/deals?${params}`)
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const data: DealResponse = await response.json()
-      setDeals(data.deals)
-      setTotalPages(data.totalPages)
-      setPage(data.page)
+      const data: DealsResponse = await response.json()
+      if (!data.success) {
+        throw new Error(data.message || "Failed to fetch deals")
+      }
+      setDeals(data.data.items)
+      setTotalPages(Math.ceil(data.data.total / data.data.limit))
+      setPage(data.data.page - 1)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch deals")
       console.error("Error fetching deals:", err)
@@ -121,7 +129,7 @@ export default function DealsPage() {
     if (page > 0) {
       const newPage = page - 1
       setPage(newPage)
-      fetchDeals(newPage)
+      fetchDeals(newPage + 1)
     }
   }
 
@@ -129,33 +137,38 @@ export default function DealsPage() {
     if (page < totalPages - 1) {
       const newPage = page + 1
       setPage(newPage)
-      fetchDeals(newPage)
+      fetchDeals(newPage + 1)
     }
   }
 
   const handlePageClick = (pageNum: number) => {
     setPage(pageNum)
-    fetchDeals(pageNum)
+    fetchDeals(pageNum + 1)
   }
 
-  const convertDealToProduct = (deal: Deal): Product => ({
-    id: deal.id,
-    name: deal.name,
-    brand: deal.brand,
-    category: deal.category,
-    price: deal.price,
-    comparePrice: deal.originalPrice.toString(),
-    image: deal.image,
-    rating: deal.rating,
-    reviewCount: deal.reviewCount,
-    stock: deal.stock,
-    description: undefined,
-    shortDescription: null,
-    savePrice: deal.savingsAmount.toString(),
-    isOnPromotion: deal.dealType !== "",
-    promotionEndDate: deal.dealEndDate,
-    specs: [],
-  });
+  const convertDealToProduct = (deal: Deal): Product => {
+    const currentPrice = parseFloat(deal.flashPrice || deal.price)
+    const originalPriceNum = parseFloat(deal.originalPrice)
+    const savings = originalPriceNum - currentPrice
+    return {
+      id: deal.id,
+      name: deal.name,
+      brand: "", // Brand not directly available, would need to fetch or adjust
+      category: "", // Category not directly available, would need to fetch or adjust
+      price: currentPrice,
+      comparePrice: originalPriceNum,
+      image: deal.image,
+      rating: parseFloat(deal.rating),
+      reviewCount: deal.reviewsCount,
+      stock: deal.flashStock !== null ? deal.flashStock : deal.stock,
+      description: deal.description,
+      shortDescription: null,
+      savePrice: savings.toString(),
+      isOnPromotion: deal.isFlashDeal,
+      promotionEndDate: deal.flashEndsAt,
+      specs: [],
+    }
+  }
 
   return (
     <div className="container mx-auto py-8">
@@ -230,7 +243,7 @@ export default function DealsPage() {
             disabled={page >= totalPages - 1}
             className="flex items-center gap-1"
           >
-              Suivant
+            Suivant
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>

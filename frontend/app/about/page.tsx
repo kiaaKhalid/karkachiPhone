@@ -69,65 +69,6 @@ export default function AboutPage() {
           </p>
         </div>
       </section>
-
-      <section className="text-center mb-12">
-        <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-8">Rencontrez Notre Équipe</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 max-w-5xl mx-auto">
-          <div className="flex flex-col items-center">
-            <Image
-              src="/professional-woman-ceo.png"
-              alt="Jane Doe - CEO"
-              width={150}
-              height={150}
-              className="rounded-full mb-4 object-cover"
-            />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Jane Doe</h3>
-            <p className="text-blue-600 dark:text-blue-400">CEO & Fondatrice</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Leader visionnaire qui guide notre mission vers l&apos;avant.
-            </p>
-          </div>
-          <div className="flex flex-col items-center">
-            <Image
-              src="/professional-product-manager.png"
-              alt="John Smith - Head of Product"
-              width={150}
-              height={150}
-              className="rounded-full mb-4 object-cover"
-            />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">John Smith</h3>
-            <p className="text-blue-600 dark:text-blue-400">Responsable Produit</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              S&apos;assure que nous offrons la meilleure et dernière technologie.
-            </p>
-          </div>
-          <div className="flex flex-col items-center">
-            <Image
-              src="/professional-woman-customer-service.png"
-              alt="Emily White - Customer Success Lead"
-              width={150}
-              height={150}
-              className="rounded-full mb-4 object-cover"
-            />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Emily White</h3>
-            <p className="text-blue-600 dark:text-blue-400">Responsable Succès Client</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">Dédiée à fournir un support exceptionnel.</p>
-          </div>
-          <div className="flex flex-col items-center">
-            <Image
-              src="/Placeholder.png"
-              alt="David Green - Logistics Manager"
-              width={150}
-              height={150}
-              className="rounded-full mb-4 object-cover"
-            />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">David Green</h3>
-            <p className="text-blue-600 dark:text-blue-400">Responsable Logistique</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">Assure une livraison rapide et fiable.</p>
-          </div>
-        </div>
-      </section>
-
       {/* Section Développeurs */}
       <section className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-900 rounded-lg p-8 mb-12">
         <h2 className="text-4xl font-bold text-center text-gray-900 dark:text-gray-100 mb-4">

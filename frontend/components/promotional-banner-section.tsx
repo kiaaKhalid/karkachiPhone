@@ -1,78 +1,52 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useAdmin } from "@/hooks/use-admin"
 
-// interface Brand {
-//   name: string
-//   logo: string
-//   slug: string
-// }
-
 interface BrandLogo {
-  id: number
+  id: string
   name: string
   logoUrl: string
 }
 
-interface ProductsPromotionalBanner {
-  idProduct: number
+interface PromotionalProduct {
+  id: string
   name: string
-  brandName: string
-  price: number
-  images: string[]
+  brandId: string
+  price: string
+  image: string
+  description: string
 }
 
-const sideBanners = [
-  {
-    id: 1,
-    title: "GAMING",
-    subtitle: "COLLECTION",
-    description: "LET THE GAME BEGIN",
-    image: "/Placeholder.png?height=200&width=300",
-    backgroundColor: "from-blue-600 to-blue-800",
-    textColor: "text-white",
-    link: "/categories/gaming",
-    icon: "🎮",
-  },
-  {
-    id: 2,
-    title: "AUDIO",
-    subtitle: "PREMIUM",
-    description: "SOUND PERFECTION",
-    image: "/Placeholder.png?height=200&width=300",
-    backgroundColor: "from-purple-600 to-indigo-800",
-    textColor: "text-white",
-    link: "/categories/audio",
-    icon: "🎵",
-  },
-]
+const urlBase = process.env.NEXT_PUBLIC_API_URL || "https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api"
 
 export default function PromotionalBannerSection() {
-  const { settings, products } = useAdmin()
+  const { settings } = useAdmin()
   const [currentBanner, setCurrentBanner] = useState(0)
-  const [currentSideBanner, setCurrentSideBanner] = useState(0)
   const [isAutoSliding, setIsAutoSliding] = useState(true)
   const carouselRef = useRef<HTMLDivElement>(null)
 
   const [brands, setBrands] = useState<BrandLogo[]>([])
   const [isLoadingBrands, setIsLoadingBrands] = useState(true)
 
-  const [promotionalProducts, setPromotionalProducts] = useState<ProductsPromotionalBanner[]>([])
+  const [promotionalProducts, setPromotionalProducts] = useState<PromotionalProduct[]>([])
   const [isLoadingPromotional, setIsLoadingPromotional] = useState(true)
+
+  const [smallProducts, setSmallProducts] = useState<PromotionalProduct[]>([])
+  const [isLoadingSmall, setIsLoadingSmall] = useState(true)
 
   useEffect(() => {
     const fetchBrands = async () => {
       try {
         setIsLoadingBrands(true)
-        const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/logo/brands")
+        const response = await fetch(`${urlBase}/public/brands/logo`)
         if (response.ok) {
           const data = await response.json()
-          setBrands(data)
+          setBrands(data.data || [])
         }
       } catch (error) {
         console.error("Error fetching brands:", error)
@@ -88,10 +62,10 @@ export default function PromotionalBannerSection() {
     const fetchPromotionalProducts = async () => {
       try {
         setIsLoadingPromotional(true)
-        const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/products/promotional-banner")
+        const response = await fetch(`${urlBase}/public/products/panale-big`)
         if (response.ok) {
           const data = await response.json()
-          setPromotionalProducts(data)
+          setPromotionalProducts(data.data || [])
         }
       } catch (error) {
         console.error("Error fetching promotional products:", error)
@@ -103,25 +77,49 @@ export default function PromotionalBannerSection() {
     fetchPromotionalProducts()
   }, [])
 
-  const promotionalBanners = promotionalProducts.map((product, index) => ({
-    id: product.idProduct,
-    title: product.name || "FEATURED PRODUCT",
-    subtitle: product.brandName || "PREMIUM",
-    description: `Découvrez ${product.name}`,
-    buttonText: index === 0 ? "COMMANDER" : index === 1 ? "DÉCOUVRIR" : "EXPLORER",
-    image: product.images && product.images.length > 0 ? product.images[0] : "/Placeholder.png",
-    backgroundColor:
-      index === 0
-        ? "from-orange-100 via-amber-50 to-yellow-100"
-        : index === 1
-          ? "from-blue-100 via-indigo-50 to-purple-100"
-          : "from-green-100 via-emerald-50 to-teal-100",
-    textColor: "text-gray-900",
-    link: `/products/${product.idProduct}`,
-    badge: index === 0 ? "NOUVEAU" : index === 1 ? "POPULAIRE" : "INNOVATION",
-    price: product.price || 0,
-    allImages: product.images || [],
-  }))
+  useEffect(() => {
+    const fetchSmallProducts = async () => {
+      try {
+        setIsLoadingSmall(true)
+        const response = await fetch(`${urlBase}/public/products/panale-smale`)
+        if (response.ok) {
+          const data = await response.json()
+          setSmallProducts(data.data || [])
+        }
+      } catch (error) {
+        console.error("Error fetching small promotional products:", error)
+      } finally {
+        setIsLoadingSmall(false)
+      }
+    }
+
+    fetchSmallProducts()
+  }, [])
+
+  const brandMap = useMemo(() => new Map(brands.map((b) => [b.id, b.name])), [brands])
+
+  const promotionalBanners = useMemo(() => {
+    if (!promotionalProducts.length) return []
+    return promotionalProducts.map((product, index) => ({
+      id: product.id,
+      title: product.name || "FEATURED PRODUCT",
+      subtitle: brandMap.get(product.brandId) || "PREMIUM",
+      description: product.description || `Découvrez ${product.name}`,
+      buttonText: index === 0 ? "COMMANDER" : index === 1 ? "DÉCOUVRIR" : "EXPLORER",
+      image: product.image || "/Placeholder.png",
+      backgroundColor:
+        index === 0
+          ? "from-orange-100 via-amber-50 to-yellow-100"
+          : index === 1
+            ? "from-blue-100 via-indigo-50 to-purple-100"
+            : "from-green-100 via-emerald-50 to-teal-100",
+      textColor: "text-gray-900",
+      link: `/products/${product.id}`,
+      badge: index === 0 ? "NOUVEAU" : index === 1 ? "POPULAIRE" : "INNOVATION",
+      price: parseFloat(product.price || "0"),
+      allImages: [product.image || "/Placeholder.png"],
+    }))
+  }, [promotionalProducts, brandMap])
 
   // Auto-slide effect for main banner
   useEffect(() => {
@@ -133,15 +131,6 @@ export default function PromotionalBannerSection() {
 
     return () => clearInterval(interval)
   }, [currentBanner, isAutoSliding, promotionalBanners.length])
-
-  // Auto-slide effect for side banner
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentSideBanner((prev) => (prev + 1) % sideBanners.length)
-    }, 4000)
-
-    return () => clearInterval(interval)
-  }, [currentSideBanner, sideBanners.length])
 
   const nextBanner = () => {
     if (promotionalBanners.length === 0) return
@@ -180,7 +169,7 @@ export default function PromotionalBannerSection() {
     }
   }, [])
 
-  if (isLoadingPromotional || promotionalBanners.length === 0) {
+  if (isLoadingPromotional || isLoadingBrands || isLoadingSmall || promotionalBanners.length === 0) {
     return (
       <section className="w-full py-12 md:py-24 lg:py-32 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 relative overflow-hidden">
         {/* Background decorative elements */}
@@ -319,12 +308,15 @@ export default function PromotionalBannerSection() {
 
             {/* Content Layout with Admin-controlled data */}
             <div className="relative z-10 h-full flex flex-col items-center justify-center p-4 sm:p-8 lg:flex-row lg:justify-between lg:p-12 lg:py-0 leading-3">
-              {/* Left Side - Brand Logo and Button */}
+              {/* Left Side - Price, Brand Logo, and Button */}
               <div className="flex flex-col justify-center space-y-4 w-full lg:w-1/3 order-2 lg:order-none lg:text-left mt-8 lg:mt-0 items-center lg:items-start text-center">
-                {/* Price Display */}
+                {/* Price Display with large "MAD" and "Prix spécial" */}
                 {promotionalBanners[currentBanner].price > 0 && (
-                  <div className="text-xl sm:text-2xl font-bold text-green-600">
-                    {promotionalBanners[currentBanner].price} {settings.currency}
+                  <div className="flex items-center space-x-2">
+                    <span className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-green-500 to-green-700 bg-clip-text text-transparent">
+                      {promotionalBanners[currentBanner].price} MAD
+                    </span>
+                    <span className="text-lg sm:text-xl font-semibold text-green-600">Prix spécial</span>
                   </div>
                 )}
                 {/* Brand Logo from Admin Settings */}
@@ -426,6 +418,14 @@ export default function PromotionalBannerSection() {
                   >
                     {promotionalBanners[currentBanner].subtitle}
                   </h2>
+                  <p
+                    className="text-sm sm:text-base lg:text-lg text-gray-600 max-w-md leading-relaxed"
+                    style={{
+                      fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                    }}
+                  >
+                    {promotionalBanners[currentBanner].description}
+                  </p>
                 </div>
               </div>
 
@@ -470,7 +470,7 @@ export default function PromotionalBannerSection() {
             <div className="relative z-10 h-full">
               {/* Background Image */}
               <img
-                src={products[3]?.image || "/Placeholder.png"}
+                src={smallProducts[0]?.image || "/Placeholder.png"}
                 alt="Side Banner"
                 className="absolute inset-0 w-full h-full object-cover"
               />
@@ -495,7 +495,7 @@ export default function PromotionalBannerSection() {
               <div className="absolute bottom-8 left-0 right-0 px-8">
                 <div className="flex items-center justify-center space-x-4 overflow-hidden">
                   <div className="flex space-x-3 animate-slide-products">
-                    {products.slice(0, 4).map((product, index) => (
+                    {smallProducts.slice(0, 4).map((product, index) => (
                       <img
                         key={index}
                         src={product.image || "/Placeholder.png"}
@@ -507,14 +507,6 @@ export default function PromotionalBannerSection() {
                 </div>
               </div>
             </div>
-
-            {/* Side Banner Navigation */}
-            <button
-              onClick={() => setCurrentSideBanner((prev) => (prev + 1) % 2)}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-white/20 backdrop-blur-md rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center hover:scale-110 dark:bg-gray-800/20"
-            >
-              <ChevronRight className="w-4 h-4 text-white dark:text-gray-100" />
-            </button>
           </div>
         </div>
       </div>
@@ -537,7 +529,7 @@ export default function PromotionalBannerSection() {
           <div className="flex animate-marquee whitespace-nowrap">
             {[...brands, ...brands].map((brand, index) => (
               <Link
-                href={`/brands/${brand.name.toLowerCase().replace(/\s+/g, "-")}`}
+                href={`/brands/${brand.id}`}
                 key={`${brand.id}-${index}`}
                 className="flex-shrink-0 mx-8 cursor-pointer hover:scale-110 transition-transform duration-300"
               >

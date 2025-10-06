@@ -55,10 +55,12 @@ export default function ProductCard({ product }: ProductCardProps) {
                 fill
                 className="object-cover transition-transform duration-300 group-hover:scale-105"
               />
-              {/* Badge for mobile */}
-              <div className="absolute top-1 right-1 md:top-2 md:right-2 w-5 h-5 md:w-6 md:h-6 bg-orange-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">%</span>
-              </div>
+              {/* Badge for discount */}
+              {product.savePrice && (
+                <div className="absolute top-1 right-1 md:top-2 md:right-2 w-5 h-5 md:w-6 md:h-6 bg-orange-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">%</span>
+                </div>
+              )}
             </div>
 
             <div className="flex-1 p-3 md:p-4 flex flex-col">
@@ -66,32 +68,34 @@ export default function ProductCard({ product }: ProductCardProps) {
                 <h3 className="text-sm md:text-lg font-semibold text-gray-900 dark:text-gray-100 line-clamp-1 md:line-clamp-2 mb-1 md:mb-2">
                   {product.name}
                 </h3>
-                <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 line-clamp-2 md:line-clamp-3 mb-2 md:mb-4">
+                <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 h-12 md:h-16 line-clamp-2 md:line-clamp-3 mb-2 md:mb-4 overflow-hidden">
                   {product.description || `Experience next-level performance with the ${product.name}.`}
                 </p>
 
-                {/* Rating - hidden on mobile, shown on desktop */}
-                <div className="hidden md:flex items-center mb-4">
+                {/* Rating - visible on both mobile and desktop, aligned horizontally */}
+                <div className="flex items-center gap-3 mb-2 md:mb-2">
                   <div className="flex text-yellow-400">
                     {Array.from({ length: 5 }).map((_, i) => (
                       <Star
                         key={i}
                         className={cn(
-                          "w-4 h-4",
+                          "w-3 h-3 md:w-4 md:h-4",
                           (product.rating ?? 0) > i ? "fill-current" : "fill-gray-300 dark:fill-gray-600",
                         )}
                       />
                     ))}
                   </div>
-                  <span className="text-sm text-gray-600 dark:text-gray-300 ml-2">({product.reviewCount} reviews)</span>
+                  <span className="text-xs md:text-sm text-gray-600 dark:text-gray-300">
+                    ({product.reviewCount} reviews)
+                  </span>
                 </div>
               </div>
 
               <div className="flex items-center justify-between mt-auto">
                 <div className="flex flex-col md:flex-row md:items-center md:gap-2">
-                  {product.price && (
+                  {product.comparePrice && (
                     <span className="text-xs md:text-sm text-gray-400 line-through">
-                      {product.price.toFixed(2)} MAD
+                      {product.comparePrice} MAD
                     </span>
                   )}
                   <span className="text-lg md:text-xl font-bold text-red-500">{product.price.toFixed(2)} MAD</span>
@@ -103,8 +107,8 @@ export default function ProductCard({ product }: ProductCardProps) {
                       id: product.id,
                       name: product.name,
                       price: product.price,
-                      image: product.image,
-                      category: product.category,
+                      image: product.image ?? "/Placeholder.png", // Provide fallback
+                      category: product.category ?? undefined, // Handle null to undefined
                       stock: product.stock,
                     }}
                     variant="icon"
@@ -120,8 +124,8 @@ export default function ProductCard({ product }: ProductCardProps) {
                 id: product.id,
                 name: product.name,
                 price: product.price,
-                image: product.image,
-                category: product.category,
+                image: product.image ?? "/Placeholder.png", // Provide fallback
+                category: product.category ?? undefined, // Handle null to undefined
                 stock: product.stock,
               }}
               className="w-full"
@@ -160,5 +164,3 @@ export default function ProductCard({ product }: ProductCardProps) {
     </>
   )
 }
-
-export { default as ProductCard } from "./product-card"

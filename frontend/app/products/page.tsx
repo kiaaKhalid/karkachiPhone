@@ -1,75 +1,26 @@
 "use client"
+
 import { useState, useEffect } from "react"
 import ProductCard from "@/components/product-card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Search, ChevronLeft, ChevronRight } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import type { Product } from "@/lib/types"
 
-// Interfaces pour le backend
-interface ProductFeaturedDetaileResponse {
-  id: number
-  name: string
-  description: string
-  price: number
-  rating: number
-  reviewCount: number
-  brand: string
-  imageUrl: string
-  stock: number
-  minStock: number
-  maxStock: number
+interface ApiResponse {
+  success: boolean
+  message: string
+  data: {
+    items?: any[]
+    total?: number
+    page?: number
+    limit?: number
+  } | any[]
 }
 
-interface ProductSearchResult {
-  id: number
-  name: string
-  brand: string
-  category: string
-  price: number
-  image: string
-  rating: number
-  reviewCount: number
-  stock: number
-  relevanceScore: number
-  highlightedText: string
-}
-
-interface SearchResponse {
-  content: ProductSearchResult[]
-  query: string
-  totalResults: number
-  page: number
-  size: number
-  totalPages: number
-}
-
-interface PageResponse {
-  content: ProductFeaturedDetaileResponse[]
-  totalElements: number
-  totalPages: number
-  size: number
-  number: number
-}
-
-// Interface Product pour le frontend
-export interface Product {
-  id: number
-  name: string
-  description?: string
-  shortDescription?: string | null
-  price: number
-  comparePrice?: string
-  savePrice?: string
-  brand?: string
-  category?: string | null
-  stock: number
-  rating?: number
-  reviewCount?: number
-  image?: string | null
-  minStock?: number
-  maxStock?: number
-}
+const urlBase = process.env.NEXT_PUBLIC_API_URL
+const productsPerPage = 24
 
 const ProductSkeleton = () => (
   <div className="space-y-3">
@@ -92,46 +43,97 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
-  const productsPerPage = 24
 
-  const fetchAllProducts = async (page: number) => {
+  const fetchProducts = async (page: number, query: string = "") => {
     try {
       setLoading(true)
       setError(false)
-      const response = await fetch(
-        `https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/products/all?page=${page - 1}&size=${productsPerPage}`
-      )
-      if (!response.ok) throw new Error("Impossible de récupérer les produits")
-      const data: PageResponse = await response.json()
-      setProducts(data.content.map(normalizeProduct))
-      setTotalPages(data.totalPages)
-      setTotalResults(data.totalElements)
-      setIsSearching(false)
-    } catch (error) {
-      console.error(error)
-      setError(true)
-    } finally {
-      setLoading(false)
-    }
-  }
+      const trimmedQuery = query.trim()
+      let endpoint: string
+      let params: URLSearchParams
 
-  const searchProducts = async (query: string, page: number) => {
-    try {
-      setLoading(true)
-      setError(false)
-      const response = await fetch(
-        `https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/products/search?query=${encodeURIComponent(
-          query
-        )}&page=${page - 1}&size=${productsPerPage}&sortBy=relevance`
-      )
-      if (!response.ok) throw new Error("Impossible de rechercher les produits")
-      const data: SearchResponse = await response.json()
-      setProducts(data.content.map(normalizeProduct))
-      setTotalPages(data.totalPages)
-      setTotalResults(data.totalResults)
-      setIsSearching(true)
-    } catch (error) {
-      console.error(error)
+      if (trimmedQuery) {
+        endpoint = `${urlBase}/public/products/search`
+        params = new URLSearchParams({
+          q: trimmedQuery,
+          limit: productsPerPage.toString(),
+          page: "1"
+        })
+      } else {
+        endpoint = `${urlBase}/public/products`
+        params = new URLSearchParams({
+          page: page.toString(),
+          limit: productsPerPage.toString(),
+        })
+      }
+
+      const response = await fetch(`${endpoint}?${params}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || "Impossible de récupérer les produits")
+      }
+      const data: ApiResponse = await response.json()
+      if (!data.success) {
+        throw new Error(data.message || "Erreur lors de la récupération des produits")
+      }
+
+      const responseData = data.data
+      let items: any[]
+      let total: number
+
+      if (trimmedQuery) {
+        if (Array.isArray(responseData)) {
+          items = responseData
+          total = responseData.length
+        } else {
+          items = []
+          total = 0
+        }
+      } else {
+        if (responseData && typeof responseData === 'object' && 'items' in responseData) {
+          items = (responseData as any).items || []
+          total = (responseData as any).total || 0
+        } else {
+          items = []
+          total = 0
+        }
+      }
+
+      const normalizedProducts: Product[] = items.map((item: any) => {
+        const price = parseFloat(item.price) || 0
+        const originalPrice = item.originalPrice ? parseFloat(item.originalPrice) : undefined
+        const savePercentage = originalPrice ? Math.round(((originalPrice - price) / originalPrice) * 100) : undefined
+        return {
+          id: item.id?.toString() || item.id || "",
+          name: item.name || "",
+          description: item.description || "",
+          price,
+          comparePrice: originalPrice,
+          savePrice: savePercentage ? savePercentage.toString() : undefined,
+          brand: item.brandId || undefined,
+          category: item.categoryId || null,
+          stock: item.stock ?? 0,
+          rating: parseFloat(item.rating) || 0,
+          reviewCount: item.reviewsCount || item.reviewCount || 0,
+          image: item.image || null,
+          isOnPromotion: item.isFlashDeal || item.isPromotional || !!originalPrice || false,
+          promotionEndDate: item.flashEndsAt || null,
+        }
+      })
+
+      setProducts(normalizedProducts)
+      setTotalResults(total)
+
+      if (trimmedQuery) {
+        setTotalPages(1)
+        setCurrentPage(1)
+      } else {
+        setTotalPages(Math.ceil(total / productsPerPage))
+      }
+
+      setIsSearching(!!trimmedQuery)
+    } catch (error: any) {
+      console.error("Erreur de fetch des produits:", error.message)
       setError(true)
     } finally {
       setLoading(false)
@@ -139,61 +141,32 @@ export default function ProductsPage() {
   }
 
   useEffect(() => {
-    fetchAllProducts(1)
+    fetchProducts(1)
   }, [])
 
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchProducts(1, searchQuery)
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery])
+
   const handleSearch = () => {
-    if (searchQuery.trim()) {
-      searchProducts(searchQuery.trim(), 1)
-      setCurrentPage(1)
-    } else {
-      fetchAllProducts(1)
-      setCurrentPage(1)
-    }
+    fetchProducts(1, searchQuery)
+    setCurrentPage(1)
   }
 
   const goToPage = (page: number) => {
+    if (page < 1 || page > totalPages || isSearching) return
     setCurrentPage(page)
-    if (searchQuery.trim() && isSearching) {
-      searchProducts(searchQuery.trim(), page)
-    } else {
-      fetchAllProducts(page)
-    }
+    fetchProducts(page, searchQuery)
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  const goToPrevious = () => currentPage > 1 && goToPage(currentPage - 1)
-  const goToNext = () => currentPage < totalPages && goToPage(currentPage + 1)
-  const handleRetry = () => (searchQuery && isSearching ? searchProducts(searchQuery, currentPage) : fetchAllProducts(currentPage))
-
-  const normalizeProduct = (product: ProductFeaturedDetaileResponse | ProductSearchResult): Product => {
-    if ("imageUrl" in product) {
-      return {
-        id: product.id,
-        name: product.name,
-        category: product.brand,
-        price: product.price,
-        image: product.imageUrl,
-        rating: product.rating,
-        reviewCount: product.reviewCount,
-        stock: product.stock ?? 0,
-        minStock: product.minStock,
-        maxStock: product.maxStock,
-        description: product.description,
-      }
-    } else {
-      return {
-        id: product.id,
-        name: product.name,
-        category: product.category || null,
-        price: product.price,
-        image: product.image,
-        rating: product.rating,
-        reviewCount: product.reviewCount,
-        stock: product.stock ?? 0,
-      }
-    }
-  }
+  const goToPrevious = () => currentPage > 1 && !isSearching && goToPage(currentPage - 1)
+  const goToNext = () => currentPage < totalPages && !isSearching && goToPage(currentPage + 1)
+  const handleRetry = () => fetchProducts(currentPage, searchQuery)
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -212,9 +185,6 @@ export default function ProductsPage() {
           />
           <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
         </div>
-        <Button onClick={handleSearch} disabled={loading} className="w-full sm:w-auto">
-          {loading ? "Recherche en cours..." : "Rechercher"}
-        </Button>
       </div>
 
       {/* Grille des produits */}
@@ -233,7 +203,7 @@ export default function ProductsPage() {
               ))}
             </div>
 
-            {totalPages > 1 && (
+            {totalPages > 1 && !isSearching && (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-12 pt-8 border-t">
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   Affichage de {(currentPage - 1) * productsPerPage + 1}-

@@ -1,11 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useParams, notFound } from "next/navigation"
+import { useParams, notFound, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Star, ShoppingCart, MessageCircle, Plus, X, Trash2 } from "lucide-react"
+import { Star, ShoppingCart, MessageCircle, Plus, X, Trash2, ChevronLeft, ChevronRight } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
@@ -13,60 +13,59 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useCart } from "@/hooks/use-cart"
 
 interface ProductImageResponse {
-  id: number
-  image: string
+  url: string
 }
 
-interface ProductSpecificationResponse {
-  id: number
-  specName: string
-  specValue: string
-  sortOrder: number | null
+interface ProductSpecResponse {
+  key: string
+  value: string
 }
 
-interface ReviewProductResponse {
-  id: number
-  title: string
+interface ReviewItemResponse {
+  id: string
+  userId: string
+  rating: number
   comment: string
-  rating: string
-  isVerified: boolean
-  isApproved: boolean
   createdAt: string
+  userName: string
+  userImage: string | null
+  isMine: boolean
 }
 
-interface ProductDetaileResponse {
-  id: number
-  name: string
-  description: string
-  shortDescription: string | null
-  price: number
-  comparePrice: string
-  costPrice: string
-  savePrice: string
-  brand: string
-  category: string | null
-  stock: number
-  rating: string
-  reviewCount: string
-  image: string | null
-  images: ProductImageResponse[]
-  specifications: ProductSpecificationResponse[]
-  reviews: ReviewProductResponse[]
-  isOnPromotion: boolean
-  promotionEndDate: string | null
-  createdAt: string
-  updatedAt: string
+interface ReviewsResponse {
+  success: true
+  message: string
+  data: {
+    items: ReviewItemResponse[]
+    total: number
+    page: number
+    limit: number
+  }
+}
+
+interface ProductDetailResponse {
+  success: true
+  message: string
+  data: {
+    id: string
+    name: string
+    description: string
+    price: number
+    priceOriginal?: number
+    stock: number
+    images: ProductImageResponse[]
+    specs: ProductSpecResponse[]
+  }
 }
 
 interface ProductReviewDTO {
-  id: number
-  nameUser: string
-  imageUser: string
-  title: string
+  id: string
+  userName: string
+  userImage: string | null
   comment: string
-  imageData: string
   rating: number
-  dateCreation: string
+  createdAt: string
+  isMine: boolean
 }
 
 function ModernImageCarousel({ images }: { images: string[] }) {
@@ -116,8 +115,11 @@ function ModernImageCarousel({ images }: { images: string[] }) {
   )
 }
 
-function ModernProductInfo({ product }: { product: any }) {
+function ModernProductInfo({ product, averageRating, totalReviews }: { product: any; averageRating: number; totalReviews: number }) {
   const { addItem } = useCart()
+  const router = useRouter()
+  const [orderSubmitting, setOrderSubmitting] = useState(false)
+  const url = process.env.NEXT_PUBLIC_API_URL as string
 
   const whatsappMessage = `Salut! Je suis intéressé par ${product.name} - ${product.price} MAD`
   const whatsappUrl = `https://wa.me/1234567890?text=${encodeURIComponent(whatsappMessage)}`
@@ -128,10 +130,55 @@ function ModernProductInfo({ product }: { product: any }) {
       name: product.name,
       price: product.price,
       image: product.image || "/Placeholder.png",
-      category: product.category,
-      brand: product.brand,
+      category: undefined,
+      brand: undefined,
     })
   }
+
+  const handleWhatsAppOrder = async () => {
+    const token = localStorage.getItem("auth_token")
+    if (!token) {
+      alert("Veuillez vous connecter pour commander.")
+      return
+    }
+
+    setOrderSubmitting(true)
+    try {
+      const response = await fetch(`${url}/person/orders`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          productId: product.id,
+          quantity: 1,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Échec de la création de la commande")
+      }
+
+      const data = await response.json()
+      const orderId = data.data.id
+      const total = data.data.total
+
+      // Construct WhatsApp message with order details
+      const orderMessage = `Salut! J'ai créé une commande pour ${product.name}.\nNuméro de commande: ${orderId}\nTotal: ${total} MAD\nPouvez-vous confirmer et procéder au paiement?`
+      const orderWhatsAppUrl = `https://wa.me/1234567890?text=${encodeURIComponent(orderMessage)}`
+
+      // Redirect to WhatsApp
+      window.open(orderWhatsAppUrl, "_blank")
+    } catch (err) {
+      console.error("Erreur lors de la commande:", err)
+      alert("Erreur lors de la création de la commande. Veuillez réessayer.")
+    } finally {
+      setOrderSubmitting(false)
+    }
+  }
+
+  const savePrice = product.priceOriginal ? (product.priceOriginal - product.price).toFixed(2) : undefined
 
   return (
     <div className="space-y-6">
@@ -143,11 +190,11 @@ function ModernProductInfo({ product }: { product: any }) {
               <Star
                 key={i}
                 className={`w-5 h-5 ${
-                  i < Math.floor(product.rating) ? "text-yellow-400 fill-current" : "text-gray-300"
+                  i < Math.floor(averageRating) ? "text-yellow-400 fill-current" : "text-gray-300"
                 }`}
               />
             ))}
-            <span className="ml-2 text-muted-foreground">({product.reviews} avis)</span>
+            <span className="ml-2 text-muted-foreground">({totalReviews} avis)</span>
           </div>
           {product.isOnPromotion && <Badge variant="destructive">Promotion</Badge>}
         </div>
@@ -156,10 +203,10 @@ function ModernProductInfo({ product }: { product: any }) {
       <div className="space-y-2">
         <div className="flex items-baseline space-x-3">
           <span className="text-4xl font-bold text-primary">{product.price} MAD</span>
-          {product.comparePrice && (
-            <span className="text-xl text-muted-foreground line-through">{product.comparePrice} MAD</span>
+          {product.priceOriginal && (
+            <span className="text-xl text-muted-foreground line-through">{product.priceOriginal} MAD</span>
           )}
-          {product.savePrice && <Badge variant="secondary">Économisez {product.savePrice} MAD</Badge>}
+          {savePrice && <Badge variant="secondary">Économisez {savePrice} MAD</Badge>}
         </div>
         <p className="text-muted-foreground">Stock: {product.stock} disponible</p>
       </div>
@@ -179,82 +226,79 @@ function ModernProductInfo({ product }: { product: any }) {
         </Button>
         <Button
           size="lg"
-          variant="outline"
-          className="w-full md:flex-1 border-secondary text-secondary hover:bg-secondary hover:text-secondary-foreground bg-transparent"
-          onClick={() => window.open(whatsappUrl, "_blank")}
+          className="w-full md:flex-1 bg-green-500 hover:bg-green-600 text-white"
+          onClick={handleWhatsAppOrder}
+          disabled={orderSubmitting}
         >
           <MessageCircle className="w-5 h-5 mr-2" />
-          Commander via WhatsApp
+          {orderSubmitting ? "Création..." : "Commander via WhatsApp"}
         </Button>
       </div>
     </div>
   )
 }
 
-function ModernReviews({ productId }: { productId: string }) {
+function ModernReviews({ productId, averageRating, totalReviews, onReviewsUpdate }: { 
+  productId: string 
+  averageRating: number 
+  totalReviews: number 
+  onReviewsUpdate: (newAverage: number, newTotal: number) => void 
+}) {
   const [reviews, setReviews] = useState<ProductReviewDTO[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [currentPage, setCurrentPage] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
-  const [totalReviews, setTotalReviews] = useState(0)
   const [showAddReview, setShowAddReview] = useState(false)
-  const [newReview, setNewReview] = useState({ rating: 5, title: "", comment: "", wouldRecommend: true })
+  const [newReview, setNewReview] = useState({ rating: 5, comment: "" })
   const [submitting, setSubmitting] = useState(false)
   const [showErrorPopup, setShowErrorPopup] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [currentUser, setCurrentUser] = useState<any>(null)
-  const [deletingReviewId, setDeletingReviewId] = useState<number | null>(null)
+  const [deletingReviewId, setDeletingReviewId] = useState<string | null>(null)
+  const reviewsPerPage = 6
+  const url = process.env.NEXT_PUBLIC_API_URL as string
 
   useEffect(() => {
     const token = localStorage.getItem("authToken")
     setIsAuthenticated(!!token)
-    if (token) {
-      fetchCurrentUser(token)
-    }
   }, [])
 
-  const fetchCurrentUser = async (token: string) => {
-    try {
-      const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/user/profile", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      if (response.ok) {
-        const userData = await response.json()
-        setCurrentUser(userData)
-      }
-    } catch (err) {
-      console.error("Failed to fetch user info:", err)
-    }
-  }
-
-  const fetchReviews = async (page = 0) => {
+  const fetchReviews = async (page = 1) => {
     try {
       setLoading(true)
       setError(null)
 
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: reviewsPerPage.toString(),
+      })
+
       const response = await fetch(
-        `https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/reviews/product/${productId}`,
+        `${url}/public/reviews/products/${productId}?${params}`,
       )
 
       if (!response.ok) {
         throw new Error("Échec du chargement des avis")
       }
 
-      const reviewsData: ProductReviewDTO[] = await response.json()
-      setReviews(reviewsData || [])
-      setTotalReviews(reviewsData?.length || 0)
-      setTotalPages(1) // Since it's not paginated
-      setCurrentPage(0)
+      const reviewsData: ReviewsResponse = await response.json()
+      const mappedReviews: ProductReviewDTO[] = (reviewsData.data.items || []).map((item: ReviewItemResponse) => ({
+        id: item.id,
+        userName: item.userName,
+        userImage: item.userImage,
+        comment: item.comment,
+        rating: item.rating,
+        createdAt: item.createdAt,
+        isMine: item.isMine,
+      }))
+      setReviews(mappedReviews)
+      setTotalPages(Math.ceil(reviewsData.data.total / reviewsPerPage))
+      setCurrentPage(page)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur s'est produite")
       setReviews([])
       setTotalPages(0)
-      setTotalReviews(0)
-      setCurrentPage(0)
     } finally {
       setLoading(false)
     }
@@ -262,13 +306,13 @@ function ModernReviews({ productId }: { productId: string }) {
 
   useEffect(() => {
     if (productId) {
-      fetchReviews(0)
+      fetchReviews(1)
     }
   }, [productId])
 
   const handleSubmitReview = async () => {
-    if (!newReview.title.trim()) {
-      setSubmitError("Le titre est requis")
+    if (!newReview.comment.trim()) {
+      setSubmitError("Le commentaire est requis")
       return
     }
 
@@ -284,14 +328,12 @@ function ModernReviews({ productId }: { productId: string }) {
       const token = localStorage.getItem("authToken")
 
       const reviewData = {
-        productId: Number.parseInt(productId),
+        productId,
         rating: newReview.rating,
-        title: newReview.title.trim(),
         comment: newReview.comment.trim(),
-        wouldRecommend: newReview.wouldRecommend,
       }
 
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/user/reviews`, {
+      const response = await fetch(`${url}/person/reviews`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -305,11 +347,11 @@ function ModernReviews({ productId }: { productId: string }) {
         return
       }
 
-      await fetchReviews(0)
-      setCurrentPage(0)
+      await fetchReviews(currentPage)
+      onReviewsUpdate(averageRating, totalReviews + 1) // Update totals
 
       setShowAddReview(false)
-      setNewReview({ rating: 5, title: "", comment: "", wouldRecommend: true })
+      setNewReview({ rating: 5, comment: "" })
     } catch (err) {
       setShowErrorPopup(true)
     } finally {
@@ -317,14 +359,14 @@ function ModernReviews({ productId }: { productId: string }) {
     }
   }
 
-  const handleDeleteReview = async (reviewId: number) => {
+  const handleDeleteReview = async (reviewId: string) => {
     if (!isAuthenticated) return
 
     try {
       setDeletingReviewId(reviewId)
       const token = localStorage.getItem("authToken")
 
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/user/reviews/${reviewId}`, {
+      const response = await fetch(`${url}/person/reviews/${reviewId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -333,6 +375,7 @@ function ModernReviews({ productId }: { productId: string }) {
 
       if (response.ok) {
         await fetchReviews(currentPage)
+        onReviewsUpdate(averageRating, totalReviews - 1) // Update totals
       }
     } catch (err) {
       console.error("Failed to delete review:", err)
@@ -341,16 +384,8 @@ function ModernReviews({ productId }: { productId: string }) {
     }
   }
 
-  const isUserReview = (review: ProductReviewDTO) => {
-    return (
-      currentUser &&
-      (currentUser.name === review.nameUser || currentUser.email === review.nameUser || currentUser.id === review.id)
-    )
-  }
-
-  const handlePageChange = (page: number) => {
-    fetchReviews(page)
-  }
+  const goToPrevious = () => currentPage > 1 && setCurrentPage(prev => prev - 1) && fetchReviews(currentPage - 1)
+  const goToNext = () => currentPage < totalPages && setCurrentPage(prev => prev + 1) && fetchReviews(currentPage + 1)
 
   return (
     <div className="space-y-6">
@@ -419,46 +454,22 @@ function ModernReviews({ productId }: { productId: string }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Titre *</label>
-                <Input
-                  placeholder="Titre de l'avis"
-                  value={newReview.title}
-                  onChange={(e) => setNewReview({ ...newReview, title: e.target.value })}
-                  disabled={submitting}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Commentaire</label>
+                <label className="block text-sm font-medium mb-2">Commentaire *</label>
                 <Textarea
                   placeholder="Écrivez votre avis..."
                   value={newReview.comment}
                   onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
                   rows={4}
                   disabled={submitting}
+                  required
                 />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="wouldRecommend"
-                  checked={newReview.wouldRecommend}
-                  onChange={(e) => setNewReview({ ...newReview, wouldRecommend: e.target.checked })}
-                  disabled={submitting}
-                  className="rounded border-gray-300"
-                />
-                <label htmlFor="wouldRecommend" className="text-sm font-medium">
-                  Je recommande ce produit
-                </label>
               </div>
 
               <div className="flex space-x-2">
                 <Button
                   onClick={handleSubmitReview}
                   className="bg-primary"
-                  disabled={submitting || !newReview.title.trim()}
+                  disabled={submitting || !newReview.comment.trim()}
                 >
                   {submitting ? "Envoi en cours..." : "Envoyer l'Avis"}
                 </Button>
@@ -511,33 +522,33 @@ function ModernReviews({ productId }: { productId: string }) {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(reviews || []).length > 0 ? (
-              (reviews || []).map((review) => (
+            {reviews.length > 0 ? (
+              reviews.map((review) => (
                 <Card key={review.id} className="border-border/50">
                   <CardContent className="p-4">
                     <div className="space-y-3">
                       <div className="flex items-center space-x-3">
                         <img
-                          src={review.imageUser || "/Placeholder.png?height=32&width=32"}
-                          alt={review.nameUser}
+                          src={review.userImage || "/Placeholder.png?height=32&width=32"}
+                          alt={review.userName}
                           className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-1 mb-1">
-                            <span className="font-medium text-foreground text-sm truncate">{review.nameUser}</span>
+                            <span className="font-medium text-foreground text-sm truncate">{review.userName}</span>
                           </div>
                           <div className="flex">
                             {[...Array(5)].map((_, i) => (
                               <Star
                                 key={i}
                                 className={`w-3 h-3 ${
-                                  i < (review.rating || 0) ? "text-yellow-400 fill-current" : "text-gray-300"
+                                  i < review.rating ? "text-yellow-400 fill-current" : "text-gray-300"
                                 }`}
                               />
                             ))}
                           </div>
                         </div>
-                        {isAuthenticated && isUserReview(review) && (
+                        {isAuthenticated && review.isMine && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -555,23 +566,12 @@ function ModernReviews({ productId }: { productId: string }) {
                       </div>
 
                       <div className="space-y-2">
-                        {review.title && (
-                          <h4 className="font-semibold text-foreground text-sm line-clamp-2">{review.title}</h4>
-                        )}
                         <p className="text-foreground text-sm leading-relaxed line-clamp-3">{review.comment}</p>
                       </div>
 
-                      {review.imageData && (
-                        <img
-                          src={review.imageData || "/Placeholder.png"}
-                          alt="Image de l'avis"
-                          className="w-full h-24 object-cover rounded-md"
-                        />
-                      )}
-
                       <div className="flex justify-between items-center pt-2 border-t border-border">
                         <span className="text-xs text-muted-foreground">
-                          {new Date(review.dateCreation).toLocaleDateString("fr-FR")}
+                          {new Date(review.createdAt).toLocaleDateString("fr-FR")}
                         </span>
                       </div>
                     </div>
@@ -590,6 +590,22 @@ function ModernReviews({ productId }: { productId: string }) {
               </div>
             )}
           </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6">
+              <div className="text-sm text-muted-foreground">
+                Page {currentPage} sur {totalPages}
+              </div>
+              <div className="flex space-x-2">
+                <Button variant="outline" size="sm" onClick={goToPrevious} disabled={currentPage === 1}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={goToNext} disabled={currentPage === totalPages}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -610,7 +626,7 @@ function ModernSpecs({ specs }: { specs: any[] }) {
                 key={index}
                 className="flex justify-between items-center py-3 border-b border-border last:border-b-0"
               >
-                <span className="font-medium text-foreground">{spec.name}</span>
+                <span className="font-medium text-foreground">{spec.key}</span>
                 <span className="text-muted-foreground">{spec.value}</span>
               </div>
             ))}
@@ -658,9 +674,13 @@ function ProductDetailSkeleton() {
 
 export default function ProductPage() {
   const params = useParams()
-  const [product, setProduct] = useState<ProductDetaileResponse | null>(null)
+  const [product, setProduct] = useState<ProductDetailResponse["data"] | null>(null)
+  const [reviewsData, setReviewsData] = useState<ReviewsResponse["data"] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [averageRating, setAverageRating] = useState(0)
+  const [totalReviews, setTotalReviews] = useState(0)
+  const url = process.env.NEXT_PUBLIC_API_URL as string
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -671,7 +691,7 @@ export default function ProductPage() {
         setError(null)
 
         const response = await fetch(
-          `https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/products/${params.id}`,
+          `${url}/public/products/${params.id}`,
         )
 
         if (!response.ok) {
@@ -681,8 +701,8 @@ export default function ProductPage() {
           throw new Error("Failed to fetch product")
         }
 
-        const productData: ProductDetaileResponse = await response.json()
-        setProduct(productData)
+        const productResponse: ProductDetailResponse = await response.json()
+        setProduct(productResponse.data)
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred")
       } finally {
@@ -690,7 +710,35 @@ export default function ProductPage() {
       }
     }
 
+    const fetchReviews = async () => {
+      if (!params.id) return
+
+      try {
+        const paramsStr = new URLSearchParams({
+          page: "1",
+          limit: "100", // Fetch more to compute average
+        }).toString()
+
+        const response = await fetch(
+          `${url}/public/reviews/products/${params.id}?${paramsStr}`,
+        )
+
+        if (response.ok) {
+          const reviewsResponse: ReviewsResponse = await response.json()
+          setReviewsData(reviewsResponse.data)
+
+          const ratings = reviewsResponse.data.items.map((item: ReviewItemResponse) => item.rating)
+          const avg = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0
+          setAverageRating(avg)
+          setTotalReviews(reviewsResponse.data.total)
+        }
+      } catch (err) {
+        console.error("Failed to fetch reviews for average:", err)
+      }
+    }
+
     fetchProduct()
+    fetchReviews()
   }, [params.id])
 
   if (loading || error) {
@@ -702,35 +750,30 @@ export default function ProductPage() {
   }
 
   const mappedProduct = {
-    id: product.id.toString(),
+    id: product.id,
     name: product.name,
     description: product.description,
-    shortDescription: product.shortDescription,
     price: product.price,
-    comparePrice: product.comparePrice,
-    savePrice: product.savePrice,
-    brand: product.brand,
-    category: product.category,
+    priceOriginal: product.priceOriginal,
     stock: product.stock,
-    rating: Number.parseFloat(product.rating) || 0,
-    reviews: Number.parseInt(product.reviewCount) || 0,
-    image: product.image,
-    isOnPromotion: product.isOnPromotion,
-    promotionEndDate: product.promotionEndDate,
-    specs: (product.specifications || []).map((spec) => ({ name: spec.specName, value: spec.specValue })),
+    image: product.images?.[0]?.url || "/Placeholder.png",
+    isOnPromotion: !!product.priceOriginal,
+    specs: product.specs || [],
   }
 
-  const productImages =
-    product.images && product.images.length > 0
-      ? product.images.map((img) => img.image)
-      : [product.image || "/Placeholder.png"]
+  const productImages = product.images?.map((img) => img.url) || [mappedProduct.image]
+
+  const handleReviewsUpdate = (newAvg: number, newTotal: number) => {
+    setAverageRating(newAvg)
+    setTotalReviews(newTotal)
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
           <ModernImageCarousel images={productImages} />
-          <ModernProductInfo product={mappedProduct} />
+          <ModernProductInfo product={mappedProduct} averageRating={averageRating} totalReviews={totalReviews} />
         </div>
 
         <section className="mb-12">
@@ -738,7 +781,12 @@ export default function ProductPage() {
         </section>
 
         <section>
-          <ModernReviews productId={product.id.toString()} />
+          <ModernReviews 
+            productId={product.id} 
+            averageRating={averageRating} 
+            totalReviews={totalReviews} 
+            onReviewsUpdate={handleReviewsUpdate} 
+          />
         </section>
       </div>
     </div>

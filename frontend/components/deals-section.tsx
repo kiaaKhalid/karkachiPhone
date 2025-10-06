@@ -11,70 +11,77 @@ import { useWishlistApi } from "@/hooks/use-wishlist-api"
 import { useAuth } from "@/hooks/use-auth"
 import LoginPopup from "@/components/login-popup"
 
-interface Deal {
-  id: number
+interface Product {
+  id: string
   name: string
-  brand: string
-  category: string
-  price: number
-  originalPrice: number
-  discountPercentage: number
-  savingsAmount: number
+  description: string
+  price: string
+  originalPrice: string
   image: string
-  rating: number
-  reviewCount: number
   stock: number
-  dealType: string
-  dealEndDate: string
-  timeRemaining: string
+  rating: string
+  reviewsCount: number
+  discount: number | null
+  isFlashDeal: boolean
+  flashPrice: string | null
+  flashEndsAt: string | null
+  flashStock: number | null
+  categoryId: string
+  brandId: string
 }
 
-interface DealResponse {
-  deals: Deal[]
-  page: number
-  size: number
-  totalElements: number
-  totalPages: number
+interface ApiResponse {
+  success: boolean
+  message: string
+  data: Product[]
 }
+
+const urlBase = process.env.NEXT_PUBLIC_API_URL || "https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api"
 
 export default function DealsSection() {
-  const [deals, setDeals] = useState<Deal[]>([])
+  const [deals, setDeals] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number; seconds: number }[]>([])
   const { checkWishlistStatus, toggleWishlist, isInWishlist, isLoading: isWishlistLoading } = useWishlistApi()
   const { isAuthenticated } = useAuth()
   const [showLoginPopup, setShowLoginPopup] = useState(false)
-  const [pendingWishlistProductId, setPendingWishlistProductId] = useState<number | null>(null)
+  const [pendingWishlistProductId, setPendingWishlistProductId] = useState<string | null>(null)
+
+  const computeTimeRemaining = (endDateStr: string | null): { hours: number; minutes: number; seconds: number } => {
+    if (!endDateStr) return { hours: 0, minutes: 0, seconds: 0 }
+
+    const endDate = new Date(endDateStr)
+    const now = new Date()
+    const diff = endDate.getTime() - now.getTime()
+
+    if (diff <= 0) return { hours: 0, minutes: 0, seconds: 0 }
+
+    const hours = Math.floor(diff / (1000 * 60 * 60))
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+
+    return { hours, minutes, seconds }
+  }
 
   useEffect(() => {
     const fetchDeals = async () => {
       try {
         setLoading(true)
         setError(false)
-        const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/products/deals?page=0&size=6")
+        const response = await fetch(`${urlBase}/public/products/flash`)
         if (!response.ok) throw new Error("Failed to fetch deals")
 
-        const data: DealResponse = await response.json()
-        setDeals(data.deals)
+        const data: ApiResponse = await response.json()
+        setDeals(data.data || [])
 
         if (isAuthenticated) {
-          data.deals.forEach((deal) => {
+          data.data.forEach((deal) => {
             checkWishlistStatus(deal.id)
           })
         }
 
-        const initialTimers = data.deals.map((deal) => {
-          if (deal.timeRemaining) {
-            const parts = deal.timeRemaining.split(":")
-            return {
-              hours: Number.parseInt(parts[0] || "0"),
-              minutes: Number.parseInt(parts[1] || "0"),
-              seconds: Number.parseInt(parts[2] || "0"),
-            }
-          }
-          return { hours: 0, minutes: 0, seconds: 0 }
-        })
+        const initialTimers = data.data.map((deal) => computeTimeRemaining(deal.flashEndsAt))
         setTimeLeft(initialTimers)
       } catch (err) {
         setError(true)
@@ -113,7 +120,7 @@ export default function DealsSection() {
     return () => clearInterval(timer)
   }, [deals])
 
-  const handleWishlistClick = async (deal: Deal) => {
+  const handleWishlistClick = async (deal: Product) => {
     if (!isAuthenticated) {
       setPendingWishlistProductId(deal.id)
       setShowLoginPopup(true)
@@ -131,11 +138,31 @@ export default function DealsSection() {
     }
   }
 
+  const getDisplayPrice = (deal: Product): string => {
+    if (deal.isFlashDeal && deal.flashPrice) {
+      return deal.flashPrice
+    }
+    return deal.price
+  }
+
+  const getOriginalPrice = (deal: Product): string => deal.originalPrice || getDisplayPrice(deal)
+
+  const getDiscountPercentage = (deal: Product): number => {
+    if (deal.discount !== null) return deal.discount
+    const original = parseFloat(getOriginalPrice(deal))
+    const current = parseFloat(getDisplayPrice(deal))
+    return Math.round(((original - current) / original) * 100)
+  }
+
+  const getStock = (deal: Product): number => {
+    if (deal.flashStock !== null) return deal.flashStock
+    return deal.stock
+  }
+
   const SkeletonCard = () => (
     <Card className="group border-border bg-background/80 backdrop-blur-sm relative overflow-hidden">
       <CardContent className="p-0">
         <div className="relative overflow-hidden rounded-t-lg">
-          {/* Fix this line by removing animate-pulse */}
           <div className="w-full h-48 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 bg-[length:200%_100%] animate-shimmer"></div>
           <div className="absolute top-3 left-3 w-12 h-6 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-600 dark:to-gray-700 rounded animate-pulse"></div>
           <div className="absolute top-3 right-3 w-16 h-6 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-600 dark:to-gray-700 rounded animate-pulse"></div>
@@ -195,6 +222,10 @@ export default function DealsSection() {
                 const productId = deal.id
                 const isWishlisted = isInWishlist(productId)
                 const wishlistLoading = isWishlistLoading(productId)
+                const displayPrice = getDisplayPrice(deal)
+                const originalPrice = getOriginalPrice(deal)
+                const discountPercentage = getDiscountPercentage(deal)
+                const currentStock = getStock(deal)
 
                 return (
                   <Card
@@ -213,11 +244,11 @@ export default function DealsSection() {
                         />
 
                         <Badge className="absolute top-3 left-3 bg-gradient-to-r from-orange-500 to-red-500 text-white text-sm px-3 py-1 font-bold shadow-sm">
-                          -{Math.round(deal.discountPercentage)}%
+                          -{discountPercentage}%
                         </Badge>
 
                         <Badge className="absolute top-3 right-3 bg-red-500 text-white text-xs px-2 py-1 animate-pulse shadow-sm">
-                          {deal.dealType}
+                          Flash
                         </Badge>
 
                         <div className="absolute bottom-3 right-3 flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -248,18 +279,14 @@ export default function DealsSection() {
                           </Button>
                         </div>
 
-                        {deal.stock <= 10 && (
+                        {currentStock <= 10 && (
                           <div className="absolute bottom-3 left-3 bg-red-500 text-white text-xs px-2 py-1 rounded shadow-sm">
-                            Plus que {deal.stock} en stock !
+                            Plus que {currentStock} en stock !
                           </div>
                         )}
                       </div>
 
                       <div className="p-4">
-                        <div className="mb-2">
-                          <span className="text-xs text-muted-foreground">{deal.category}</span>
-                        </div>
-
                         <h3 className="text-sm font-semibold text-foreground mb-2 group-hover:text-orange-500 transition-colors">
                           {deal.name}
                         </h3>
@@ -270,18 +297,18 @@ export default function DealsSection() {
                               <Star
                                 key={i}
                                 className={`w-3 h-3 ${
-                                  i < Math.floor(deal.rating) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
+                                  i < Math.floor(parseFloat(deal.rating)) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
                                 }`}
                               />
                             ))}
                           </div>
-                          <span className="text-xs text-muted-foreground ml-1">({deal.reviewCount})</span>
+                          <span className="text-xs text-muted-foreground ml-1">({deal.reviewsCount})</span>
                         </div>
 
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center space-x-1">
-                            <span className="text-lg font-bold text-foreground">{deal.price} MAD</span>
-                            <span className="text-sm text-muted-foreground line-through">{deal.originalPrice} MAD</span>
+                            <span className="text-lg font-bold text-foreground">{parseFloat(displayPrice).toFixed(2)} MAD</span>
+                            <span className="text-sm text-muted-foreground line-through">{parseFloat(originalPrice).toFixed(2)} MAD</span>
                           </div>
                         </div>
 
@@ -301,10 +328,10 @@ export default function DealsSection() {
                           product={{
                             id: deal.id,
                             name: deal.name,
-                            price: deal.price,
+                            price: parseFloat(displayPrice),
                             image: deal.image,
-                            category: deal.category,
-                            stock: deal.stock,
+                            category: deal.categoryId,
+                            stock: currentStock,
                           }}
                           variant="compact"
                           className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white text-xs shadow-md hover:shadow-lg"

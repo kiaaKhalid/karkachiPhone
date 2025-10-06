@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface CategoryChoix {
-  id: number
+  id: string
   name: string
   image: string
 }
@@ -21,7 +21,7 @@ export default function CategoriesPage() {
     const fetchCategories = async () => {
       try {
         setLoading(true)
-        const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/category/all`)
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/public/category`)
 
         if (!response.ok) {
           throw new Error("Échec du chargement des catégories")

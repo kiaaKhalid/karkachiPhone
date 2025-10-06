@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { usePathname } from "next/navigation"
-import { MessageCircle } from "lucide-react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/use-auth"
 
@@ -11,8 +11,8 @@ export function FloatingWhatsAppButton() {
   const pathname = usePathname()
   const { user } = useAuth()
 
-  // Only show on product pages and not for admin users
-  const shouldShow = pathname.startsWith("/products/") && user?.role !== "admin"
+  // Show on all pages except admin and auth routes
+  const shouldShow = !pathname.startsWith("/admin") && !pathname.startsWith("/auth/") && user?.role !== "admin"
 
   const handleWhatsAppClick = () => {
     const phoneNumber = "+1234567890" // Replace with your WhatsApp number
@@ -31,10 +31,17 @@ export function FloatingWhatsAppButton() {
         onClick={handleWhatsAppClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="h-14 w-14 rounded-full bg-green-500 hover:bg-green-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110"
+        className="h-14 w-14 rounded-full bg-green-500 hover:bg-green-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 flex items-center justify-center"
         size="icon"
+        aria-label="Chat with us on WhatsApp"
       >
-        <MessageCircle className="h-6 w-6" />
+        <Image
+          src="/whatsapp.png" // Ensure this image exists in the public directory
+          alt="WhatsApp Logo"
+          width={54}
+          height={54}
+          className="object-contain"
+        />
       </Button>
 
       {isHovered && (

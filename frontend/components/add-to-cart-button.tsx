@@ -49,6 +49,7 @@ export default function AddToCartButton({
   const { addItem } = useCart()
   const { isAuthenticated } = useAuth()
   const pathname = usePathname()
+  const url = process.env.NEXT_PUBLIC_API_URL
 
   // Déterminer la catégorie
   const getCurrentCategory = (): keyof typeof categoryColors => {
@@ -71,9 +72,9 @@ export default function AddToCartButton({
   const addToCartAPI = async (productId: string, quantity = 1) => {
     try {
       const token = localStorage.getItem("auth_token")
-      if (!token) throw new Error("Aucun jeton d’authentification trouvé")
+      if (!token) throw new Error("Aucun jeton d'authentification trouvé")
 
-      const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/user/cart/items", {
+      const response = await fetch(`${url}/person/cart/items`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -81,7 +82,7 @@ export default function AddToCartButton({
         },
         body: JSON.stringify({
           quantity,
-          idProduct: productId,
+          productId: productId,
         }),
       })
 

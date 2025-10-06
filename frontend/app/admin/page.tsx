@@ -20,70 +20,56 @@ import {
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 
-interface DailySummary {
-  date: string
-  orders: number
+interface DashboardStats {
   revenue: number
+  orders: number
+  products: number
   clients: number
-  totalProducts: number
 }
 
-interface DashboardResponse {
-  totalOrders: number
-  totalRevenue: number
-  totalClients: number
-  totalProducts: number
-  dailySummaries: DailySummary[]
+interface DashboardStatsResponse {
+  success: boolean
+  message: string
+  data: DashboardStats
 }
 
-interface OrderResponseDTO {
-  id: number
-  customerName: string
-  customerEmail: string
-  customerPhone: string
+interface OrderUser {
+  email: string
+  name: string
+}
+
+interface DashboardOrder {
+  id: string
+  userId: string
   status: string
-  subtotal: number
-  taxAmount: number
-  shippingAmount: number
-  discountAmount: number
   total: number
-  currency: string
-  trackingNumber?: string
-  estimatedDelivery?: string
-  deliveredAt?: string
-  notes?: string
-  adminNotes?: string
+  user: OrderUser
   createdAt: string
-  updatedAt: string
 }
 
-interface PageResponseDTO<T> {
-  content: T[]
-  totalElements: number
-  totalPages: number
-  currentPage: number
-  pageSize: number
-  hasNext: boolean
-  hasPrevious: boolean
+interface DashboardOrdersResponse {
+  success: boolean
+  message: string
+  data: DashboardOrder[]
 }
 
 export default function AdminDashboard() {
-  const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null)
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [dateRange, setDateRange] = useState("30days")
-  const [recentOrders, setRecentOrders] = useState<OrderResponseDTO[]>([])
+  const [recentOrders, setRecentOrders] = useState<DashboardOrder[]>([])
   const [ordersLoading, setOrdersLoading] = useState(true)
   const [ordersError, setOrdersError] = useState<string | null>(null)
   const { toast } = useToast()
+  const url = process.env.NEXT_PUBLIC_API_URL
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardStats = async () => {
     try {
       setLoading(true)
       setError(null)
 
       const response = await fetch(
-        `https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/analytics/dashboard?dateRange=${dateRange}&timezone=Africa/Casablanca&currency=MAD&refresh=false`,
+        `${url}/admin/dashboard/static`,
         {
           method: "GET",
           headers: {
@@ -97,14 +83,14 @@ export default function AdminDashboard() {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const data: DashboardResponse = await response.json()
-      setDashboardData(data)
+      const data: DashboardStatsResponse = await response.json()
+      setDashboardStats(data.data)
     } catch (error) {
-      console.error("Error fetching dashboard data:", error)
-      setError("Failed to load dashboard data")
+      console.error("Error fetching dashboard stats:", error)
+      setError("Failed to load dashboard statistics")
       toast({
         title: "Error",
-        description: "Failed to load dashboard data. Please try again.",
+        description: "Failed to load dashboard statistics. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -117,20 +103,23 @@ export default function AdminDashboard() {
       setOrdersLoading(true)
       setOrdersError(null)
 
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/orders?page=1&limit=5&sortBy=createdAt&sortOrder=desc`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+      const response = await fetch(
+        `${url}/admin/dashboard/orders`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          },
         },
-      })
+      )
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const data: PageResponseDTO<OrderResponseDTO> = await response.json()
-      setRecentOrders(data.content)
+      const data: DashboardOrdersResponse = await response.json()
+      setRecentOrders(data.data)
     } catch (error) {
       console.error("Error fetching recent orders:", error)
       setOrdersError("Failed to load recent orders")
@@ -145,27 +134,9 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => {
-    fetchDashboardData()
+    fetchDashboardStats()
     fetchRecentOrders()
-  }, [dateRange])
-
-  const calculatePercentageChange = (
-    current: number,
-    dailySummaries: DailySummary[],
-    field: keyof DailySummary,
-  ): number => {
-    if (!dailySummaries || dailySummaries.length < 2) return 0
-
-    const sortedSummaries = [...dailySummaries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    const firstHalf = sortedSummaries.slice(0, Math.floor(sortedSummaries.length / 2))
-    const secondHalf = sortedSummaries.slice(Math.floor(sortedSummaries.length / 2))
-
-    const firstHalfSum = firstHalf.reduce((sum, item) => sum + Number(item[field]), 0)
-    const secondHalfSum = secondHalf.reduce((sum, item) => sum + Number(item[field]), 0)
-
-    if (firstHalfSum === 0) return 0
-    return ((secondHalfSum - firstHalfSum) / firstHalfSum) * 100
-  }
+  }, [])
 
   const quickActions = [
     {
@@ -217,8 +188,16 @@ export default function AdminDashboard() {
     }
   }
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+    }).format(amount)
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 -mt-10">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -231,6 +210,7 @@ export default function AdminDashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Total Revenue Card */}
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Revenue</CardTitle>
@@ -245,27 +225,18 @@ export default function AdminDashboard() {
             ) : (
               <>
                 <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                  ${dashboardData?.totalRevenue?.toLocaleString() || "0"}
+                  {formatCurrency(dashboardStats?.revenue || 0)}
                 </div>
                 <div className="flex items-center text-xs text-blue-600 dark:text-blue-400 mt-1">
-                  {dashboardData &&
-                  calculatePercentageChange(dashboardData.totalRevenue, dashboardData.dailySummaries, "revenue") > 0 ? (
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 mr-1" />
-                  )}
-                  {dashboardData
-                    ? Math.abs(
-                        calculatePercentageChange(dashboardData.totalRevenue, dashboardData.dailySummaries, "revenue"),
-                      ).toFixed(1)
-                    : "0"}
-                  % from last period
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  Total revenue from all orders
                 </div>
               </>
             )}
           </CardContent>
         </Card>
 
+        {/* Total Orders Card */}
         <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300">Total Orders</CardTitle>
@@ -280,27 +251,18 @@ export default function AdminDashboard() {
             ) : (
               <>
                 <div className="text-2xl font-bold text-green-900 dark:text-green-100">
-                  {dashboardData?.totalOrders?.toLocaleString() || "0"}
+                  {dashboardStats?.orders?.toLocaleString() || "0"}
                 </div>
                 <div className="flex items-center text-xs text-green-600 dark:text-green-400 mt-1">
-                  {dashboardData &&
-                  calculatePercentageChange(dashboardData.totalOrders, dashboardData.dailySummaries, "orders") > 0 ? (
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 mr-1" />
-                  )}
-                  {dashboardData
-                    ? Math.abs(
-                        calculatePercentageChange(dashboardData.totalOrders, dashboardData.dailySummaries, "orders"),
-                      ).toFixed(1)
-                    : "0"}
-                  % from last period
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  Total number of orders
                 </div>
               </>
             )}
           </CardContent>
         </Card>
 
+        {/* Total Products Card */}
         <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-purple-700 dark:text-purple-300">Total Products</CardTitle>
@@ -315,17 +277,18 @@ export default function AdminDashboard() {
             ) : (
               <>
                 <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                  {dashboardData?.totalProducts?.toLocaleString() || "0"}
+                  {dashboardStats?.products?.toLocaleString() || "0"}
                 </div>
                 <div className="flex items-center text-xs text-purple-600 dark:text-purple-400 mt-1">
                   <TrendingUp className="h-3 w-3 mr-1" />
-                  0% from last period
+                  Products in inventory
                 </div>
               </>
             )}
           </CardContent>
         </Card>
 
+        {/* Total Clients Card */}
         <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-orange-200 dark:border-orange-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-orange-700 dark:text-orange-300">Total Clients</CardTitle>
@@ -340,21 +303,11 @@ export default function AdminDashboard() {
             ) : (
               <>
                 <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
-                  {dashboardData?.totalClients?.toLocaleString() || "0"}
+                  {dashboardStats?.clients?.toLocaleString() || "0"}
                 </div>
                 <div className="flex items-center text-xs text-orange-600 dark:text-orange-400 mt-1">
-                  {dashboardData &&
-                  calculatePercentageChange(dashboardData.totalClients, dashboardData.dailySummaries, "clients") > 0 ? (
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 mr-1" />
-                  )}
-                  {dashboardData
-                    ? Math.abs(
-                        calculatePercentageChange(dashboardData.totalClients, dashboardData.dailySummaries, "clients"),
-                      ).toFixed(1)
-                    : "0"}
-                  % from last period
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  Registered customers
                 </div>
               </>
             )}
@@ -444,14 +397,14 @@ export default function AdminDashboard() {
                   >
                     <div className="flex items-center space-x-4">
                       <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
-                        #{order.id.toString().slice(-3)}
+                        #{order.id.slice(-3)}
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900 dark:text-white">Order #{order.id}</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">{order.customerName}</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">Order #{order.id.slice(-8)}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{order.user.name}</p>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">{order.customerEmail}</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{order.user.email}</p>
                         <div className="flex items-center space-x-2 mt-1">
                           <Clock className="h-3 w-3 text-gray-400" />
                           <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -463,7 +416,7 @@ export default function AdminDashboard() {
                     <div className="flex items-center space-x-4">
                       <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
                       <p className="font-semibold text-gray-900 dark:text-white">
-                        {order.total.toLocaleString()} {order.currency}
+                        {formatCurrency(order.total)}
                       </p>
                     </div>
                   </div>

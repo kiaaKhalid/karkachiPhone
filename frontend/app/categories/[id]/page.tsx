@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { notFound, useRouter } from "next/navigation"
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { notFound, useRouter, useParams, useSearchParams } from "next/navigation"
 import ProductCard from "@/components/product-card"
 import ProductSkeleton from "@/components/product-skeleton"
 import { Input } from "@/components/ui/input"
@@ -10,54 +10,58 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ChevronLeft, ChevronRight, X } from "lucide-react"
 import type { Product } from "@/lib/types"
-import { use } from "react"
 
-interface CategoryPageProps {
-  params: Promise<{ slug: string }>
-  searchParams: Promise<{
-    minPrice?: string
-    maxPrice?: string
-    brand?: string
-    sortBy?: string
-    sortDir?: string
-    page?: string
-  }>
-}
-
-interface ProductCategoryResult {
-  id: number
+interface CategoryChoix {
+  id: string
   name: string
-  brand: string
-  price: number
   image: string
-  rating: number
-  reviewCount: number
-  stock: number
-  isOnPromotion: boolean
-  category: string
 }
 
-interface CategoryProductsResponse {
-  category: string
-  categoryName: string
-  products: {
-    content: ProductCategoryResult[]
-    totalElements: number
-    totalPages: number
-    page: number
-    size: number
-  }
-  filters: {
-    brands: string[]
-    priceRange: {
-      min: number
-      max: number
-    }
-  }
+interface BrandLogo {
+  id: string
+  name: string
+  logoUrl: string
+}
+
+interface ProductItem {
+  id: string
+  name: string
+  description: string
+  price: string
+  originalPrice: string
+  image: string
+  stock: number
+  rating: string
+  reviewsCount: number
+  discount: number | null
+  isFlashDeal: boolean
+  flashPrice: string | null
+  flashEndsAt: string | null
+  categoryId: string
+  brandId: string
+}
+
+interface PublicListData {
+  items: ProductItem[]
+  total: number
+  page: number
+  limit: number
+}
+
+interface PublicListResponse {
+  success: boolean
+  message: string
+  data: PublicListData
+}
+
+interface BrandsResponse {
+  success: boolean
+  message: string
+  data: BrandLogo[]
 }
 
 const FiltersSkeleton = () => (
-  <aside className="w-full lg:w-1/4 p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md ml-2.5">
+  <aside className="w-full lg:w-1/4 p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md flex-shrink-0 ml-2.5">
     <Skeleton className="h-8 w-20 mb-6" />
     <div className="space-y-6">
       <div>
@@ -71,16 +75,12 @@ const FiltersSkeleton = () => (
         <Skeleton className="h-6 w-16 mb-3" />
         <Skeleton className="h-10 w-full" />
       </div>
-      <div>
-        <Skeleton className="h-6 w-16 mb-3" />
-        <Skeleton className="h-10 w-full" />
-      </div>
     </div>
   </aside>
 )
 
 const ProductGridSkeleton = () => (
-  <main className="flex-1">
+  <main className="flex-1 overflow-y-auto">
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
       {Array.from({ length: 25 }).map((_, index) => (
         <ProductSkeleton key={index} />
@@ -89,87 +89,158 @@ const ProductGridSkeleton = () => (
   </main>
 )
 
-const normalizeProduct = (product: ProductCategoryResult): Product => ({
-  id: product.id,
-  name: product.name,
-  description: "",
-  shortDescription: null,
-  price: product.price,
-  comparePrice: "",
-  savePrice: "",
-  brand: product.brand,
-  category: product.category,
-  stock: product.stock,
-  rating: product.rating,
-  reviewCount: product.reviewCount,
-  image: product.image || null,
-  isOnPromotion: product.isOnPromotion,
-  promotionEndDate: null,
-  specs: [],
-})
-
-export default function CategoryPage({ params, searchParams }: CategoryPageProps) {
-  const [categoryData, setCategoryData] = useState<CategoryProductsResponse | null>(null)
+export default function CategoryPage() {
+  const [categories, setCategories] = useState<CategoryChoix[]>([])
+  const [brands, setBrands] = useState<BrandLogo[]>([])
+  const [products, setProducts] = useState<PublicListData | null>(null)
   const [loading, setLoading] = useState(true)
   const [productsLoading, setProductsLoading] = useState(false)
   const [error, setError] = useState(false)
 
-  const resolvedParams = use(params)
-  const resolvedSearchParams = use(searchParams)
-
-  const { minPrice, maxPrice, brand, sortBy = "createdAt", sortDir = "desc", page = "0" } = resolvedSearchParams
-  const { slug } = resolvedParams
+  const params = useParams()
+  const searchParams = useSearchParams()
+  
+  const id = params.id as string
+  const minPrice = searchParams.get('minPrice') || undefined
+  const maxPrice = searchParams.get('maxPrice') || undefined
+  const brand = searchParams.get('brand') || undefined
+  const page = searchParams.get('page') || "0"
+  
   const currentPage = Number.parseInt(page)
+  const url = process.env.NEXT_PUBLIC_API_URL
 
   const router = useRouter()
 
-  useEffect(() => {
-    const fetchCategoryProducts = async () => {
-      try {
-        if (categoryData) {
-          setProductsLoading(true)
-        } else {
-          setLoading(true)
-        }
-        setError(false)
+  const category = useMemo(() => 
+    categories.find(c => c.id === id), [categories, id]
+  )
 
-        const apiParams = new URLSearchParams({
-          page: currentPage.toString(),
-          size: "25",
-          sortBy,
-          sortDir,
-        })
+  const brandMap = useMemo(() => new Map(brands.map(b => [b.id, b.name])), [brands])
 
-        if (brand) apiParams.append("brand", brand)
-        if (minPrice) apiParams.append("minPrice", minPrice)
-        if (maxPrice) apiParams.append("maxPrice", maxPrice)
+  const normalizeProduct = useCallback((item: ProductItem): Product => {
+    const currentPriceStr = item.isFlashDeal && item.flashPrice ? item.flashPrice : item.price
+    const priceNum = parseFloat(currentPriceStr)
+    const origNum = parseFloat(item.originalPrice)
+    const savings = Math.round((origNum - priceNum) * 100) / 100
+    const brandName = brandMap.get(item.brandId) || ""
+    return {
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      shortDescription: null,
+      price: priceNum,
+      comparePrice: origNum,
+      savePrice: savings > 0 ? savings.toFixed(2) : "0",
+      image: item.image || "/Placeholder.png?height=300&width=300",
+      category: category?.name || "",
+      brand: brandName,
+      rating: parseFloat(item.rating),
+      reviewCount: item.reviewsCount,
+      stock: item.stock,
+      isOnPromotion: savings > 0 || item.isFlashDeal,
+      promotionEndDate: item.isFlashDeal ? item.flashEndsAt : null,
+      specs: [],
+    }
+  }, [brandMap, category])
 
-        const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/products/category/${slug}?${apiParams}`)
-        if (!response.ok) {
-          throw new Error("Failed to fetch products")
-        }
-
-        const data: CategoryProductsResponse = await response.json()
-        setCategoryData(data)
-
-        if (!data.products.content || data.products.content.length === 0) {
-          if (currentPage === 0) {
-            notFound()
-          }
-        }
-      } catch (err) {
-        setError(true)
-      } finally {
-        setLoading(false)
-        setProductsLoading(false)
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch(`${url}/public/category`)
+      if (!response.ok) {
+        throw new Error("Failed to fetch categories")
       }
+      const data: CategoryChoix[] = await response.json()
+      setCategories(data)
+    } catch (err) {
+      console.error("Error fetching categories:", err)
+    }
+  }
+
+  const fetchBrands = async () => {
+    try {
+      const response = await fetch(`${url}/public/brands/logo`)
+      if (!response.ok) {
+        throw new Error("Failed to fetch brands")
+      }
+      const data: BrandsResponse = await response.json()
+      if (data.success) {
+        setBrands(data.data)
+      }
+    } catch (err) {
+      console.error("Error fetching brands:", err)
+    }
+  }
+
+  const fetchCategoryProducts = async (apiPage = 1) => {
+    if (!category) {
+      setError(true)
+      setLoading(false)
+      return
     }
 
-    fetchCategoryProducts()
-  }, [slug, currentPage, brand, minPrice, maxPrice, sortBy, sortDir])
+    try {
+      setProductsLoading(apiPage > 1)
+      if (apiPage === 1) {
+        setLoading(true)
+      }
+      setError(false)
+
+      const params = new URLSearchParams({
+        page: apiPage.toString(),
+        limit: "25",
+      })
+
+      if (brand) params.append("brandId", brand)
+      if (minPrice) params.append("priceMin", minPrice)
+      if (maxPrice) params.append("priceMax", maxPrice)
+
+      const response = await fetch(`${url}/public/products/category/${category.id}?${params}`)
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch category products")
+      }
+
+      const data: PublicListResponse = await response.json()
+      if (!data.success) {
+        throw new Error(data.message || "Failed to fetch category products")
+      }
+      setProducts(data.data)
+
+      if (data.data.items.length === 0 && apiPage === 1) {
+        notFound()
+      }
+    } catch (error) {
+      console.error("Error fetching category products:", error)
+      setError(true)
+    } finally {
+      setLoading(false)
+      setProductsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchCategories()
+    fetchBrands()
+  }, [])
+
+  useEffect(() => {
+    if (categories.length > 0 && !category) {
+      notFound()
+    }
+    if (category) {
+      fetchCategoryProducts(1)
+    }
+  }, [category])
+
+  useEffect(() => {
+    if (category) {
+      const apiPage = currentPage + 1
+      fetchCategoryProducts(apiPage)
+    }
+  }, [currentPage, brand, minPrice, maxPrice, category])
 
   const updateSearchParams = (key: string, value: string | null) => {
-    const newSearchParams = new URLSearchParams(resolvedSearchParams as any)
+    const newSearchParams = new URLSearchParams(searchParams.toString())
     if (value) {
       newSearchParams.set(key, value)
     } else {
@@ -178,20 +249,22 @@ export default function CategoryPage({ params, searchParams }: CategoryPageProps
     if (key !== "page") {
       newSearchParams.delete("page")
     }
-
-    // Use router.push instead of window.history.pushState to trigger re-render
-    router.push(`/categories/${slug}?${newSearchParams.toString()}`)
+    router.push(`/categories/${id}?${newSearchParams.toString()}`)
   }
 
   const handlePageChange = (newPage: number) => {
     updateSearchParams("page", newPage.toString())
   }
 
-  if (loading && !categoryData) {
+  const handleClearFilters = () => {
+    router.push(`/categories/${id}`)
+  }
+
+  if (loading && !products) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 h-screen flex flex-col">
         <Skeleton className="h-10 w-48 mb-8" />
-        <div className="flex flex-col lg:flex-row gap-8">
+        <div className="flex-1 flex flex-col lg:flex-row gap-8 min-h-0">
           <FiltersSkeleton />
           <ProductGridSkeleton />
         </div>
@@ -199,18 +272,19 @@ export default function CategoryPage({ params, searchParams }: CategoryPageProps
     )
   }
 
-  if (error || !categoryData) {
+  if (error || !category || !products) {
     return notFound()
   }
 
-  const { products, filters } = categoryData
-  const hasFilters = minPrice || maxPrice || brand || sortBy !== "createdAt" || sortDir !== "desc"
+  const totalPages = Math.ceil(products.total / products.limit)
+  const currentUiPage = products.page - 1
+  const hasFilters = minPrice || maxPrice || brand
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold mb-8 capitalize">{categoryData.categoryName}</h1>
-      <div className="flex flex-col lg:flex-row gap-8">
-        <aside className="w-full lg:w-1/4 p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md ml-2.5">
+    <div className="container mx-auto px-4 h-screen flex flex-col">
+      <h1 className="text-4xl font-bold mb-8 capitalize flex-none">{category.name}</h1>
+      <div className="flex-1 flex flex-col lg:flex-row gap-8 min-h-0">
+        <aside className="w-full lg:w-1/4 p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md flex-shrink-0 ml-2.5">
           <h2 className="text-2xl font-semibold mb-6">Filtres</h2>
           <div className="space-y-6">
             <div>
@@ -220,13 +294,13 @@ export default function CategoryPage({ params, searchParams }: CategoryPageProps
                 onValueChange={(value) => updateSearchParams("brand", value === "all" ? null : value)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="All Brands" />
+                  <SelectValue placeholder="Toutes les marques" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Toutes les marques</SelectItem>
-                  {filters.brands.map((brandOption) => (
-                    <SelectItem key={brandOption} value={brandOption}>
-                      {brandOption}
+                  {brands.map((brandOption) => (
+                    <SelectItem key={brandOption.id} value={brandOption.id}>
+                      {brandOption.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -238,14 +312,14 @@ export default function CategoryPage({ params, searchParams }: CategoryPageProps
               <div className="flex items-center space-x-4">
                 <Input
                   type="number"
-                  placeholder={`Min ({filters.priceRange.min} MAD)`}
+                  placeholder="0"
                   defaultValue={minPrice}
                   className="w-1/2"
                   onBlur={(e) => updateSearchParams("minPrice", e.target.value || null)}
                 />
                 <Input
                   type="number"
-                  placeholder={`Max ({filters.priceRange.max} MAD)`}
+                  placeholder="10000"
                   defaultValue={maxPrice}
                   className="w-1/2"
                   onBlur={(e) => updateSearchParams("maxPrice", e.target.value || null)}
@@ -253,35 +327,11 @@ export default function CategoryPage({ params, searchParams }: CategoryPageProps
               </div>
             </div>
 
-            <div>
-              <h3 className="text-lg font-medium mb-3">Trier par</h3>
-              <Select
-                value={`${sortBy}-${sortDir}`}
-                onValueChange={(value) => {
-                  const [newSortBy, newSortDir] = value.split("-")
-                  updateSearchParams("sortBy", newSortBy)
-                  updateSearchParams("sortDir", newSortDir)
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="createdAt-desc">Plus récent</SelectItem>
-                  <SelectItem value="createdAt-asc">Plus ancien</SelectItem>
-                  <SelectItem value="price-asc">Prix : du plus bas au plus élevé</SelectItem>
-                  <SelectItem value="price-desc">Prix : du plus élevé au plus bas</SelectItem>
-                  <SelectItem value="name-asc">Nom : A → Z</SelectItem>
-                  <SelectItem value="name-desc">Nom : Z → A</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             {hasFilters && (
               <Button
                 variant="outline"
                 className="w-full mt-4 bg-transparent"
-                onClick={() => router.push(`/categories/${slug}`)}
+                onClick={handleClearFilters}
               >
                 <X className="mr-2 h-4 w-4" /> Réinitialiser les filtres
               </Button>
@@ -289,56 +339,55 @@ export default function CategoryPage({ params, searchParams }: CategoryPageProps
           </div>
         </aside>
 
-        <main className="flex-1">
+        <main className="flex-1 overflow-y-auto">
           {productsLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               {Array.from({ length: 25 }).map((_, index) => (
                 <ProductSkeleton key={index} />
               ))}
             </div>
-          ) : products.content.length > 0 ? (
+          ) : products.items.length > 0 ? (
             <>
               <div className="flex justify-between items-center mb-6">
                 <p className="text-sm text-muted-foreground">
-                  Affichage de {products.content.length} sur {products.totalElements} produits
+                  Affichage de {products.items.length} sur {products.total} produits
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8">
-                {products.content.map((product) => (
+                {products.items.map((product) => (
                   <ProductCard key={product.id} product={normalizeProduct(product)} />
                 ))}
               </div>
 
-              {products.totalPages > 1 && (
+              {totalPages > 1 && (
                 <div className="flex justify-center items-center space-x-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 0}
+                    onClick={() => handlePageChange(currentUiPage - 1)}
+                    disabled={currentUiPage === 0}
                   >
                     <ChevronLeft className="h-4 w-4" />
                     Précédent
                   </Button>
 
                   <div className="flex space-x-1">
-                    {Array.from({ length: Math.min(5, products.totalPages) }, (_, i) => {
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                       let pageNum = i
-                      if (products.totalPages > 5) {
-                        if (currentPage < 3) {
+                      if (totalPages > 5) {
+                        if (currentUiPage < 3) {
                           pageNum = i
-                        } else if (currentPage > products.totalPages - 3) {
-                          pageNum = products.totalPages - 5 + i
+                        } else if (currentUiPage > totalPages - 3) {
+                          pageNum = totalPages - 5 + i
                         } else {
-                          pageNum = currentPage - 2 + i
+                          pageNum = currentUiPage - 2 + i
                         }
                       }
-
                       return (
                         <Button
                           key={pageNum}
-                          variant={currentPage === pageNum ? "default" : "outline"}
+                          variant={currentUiPage === pageNum ? "default" : "outline"}
                           size="sm"
                           onClick={() => handlePageChange(pageNum)}
                         >
@@ -351,8 +400,8 @@ export default function CategoryPage({ params, searchParams }: CategoryPageProps
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage >= products.totalPages - 1}
+                    onClick={() => handlePageChange(currentUiPage + 1)}
+                    disabled={currentUiPage >= totalPages - 1}
                   >
                     Suivant
                     <ChevronRight className="h-4 w-4" />

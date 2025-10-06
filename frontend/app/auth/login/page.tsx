@@ -1,19 +1,21 @@
-"use client";
+"use client"
 
 import type React from "react";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { Eye, EyeOff, Mail, Lock, Chrome, Facebook, Apple } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, Chrome } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useDeliveryAuth } from "@/hooks/use-delivery-auth";
 import { useToast } from "@/hooks/use-toast";
+
+const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -21,9 +23,9 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isRedirecting, setIsRedirecting] = useState(false); // Anti-loop
 
-  const { login: userLogin, isAuthenticated: isUserAuthenticated, user: regularUser } = useAuth();
-  const { login: deliveryLogin, isAuthenticated: isDeliveryAuthenticated, user: deliveryPartner } = useDeliveryAuth();
+  const { login: userLogin, isAuthenticated: isUserAuthenticated, user: regularUser, recheckSession } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -31,13 +33,24 @@ export default function LoginPage() {
   const redirectTo = searchParams.get("redirect") || "/";
 
   useEffect(() => {
-    if (isUserAuthenticated && regularUser) {
-      const targetUrl = ["admin", "super_admin"].includes(regularUser.role) ? "/admin" : redirectTo;
-      router.replace(targetUrl);
-    } else if (isDeliveryAuthenticated && deliveryPartner) {
-      router.replace("/delivery/dashboard");
-    }
-  }, [isUserAuthenticated, regularUser, isDeliveryAuthenticated, deliveryPartner, router, redirectTo]);
+    const handleRedirect = async () => {
+      if (isUserAuthenticated && regularUser && !isRedirecting) {
+        console.log("Starting redirect for user:", regularUser.role); // Debug
+        setIsRedirecting(true); // Bloque loop
+        try {
+          await recheckSession(); // Force re-valide session
+          const targetUrl = ["admin", "super_admin"].includes(regularUser.role) ? "/admin" : redirectTo;
+          console.log("Redirecting to:", targetUrl); // Debug
+          router.replace(targetUrl);
+        } catch (err) {
+          console.error("Redirect failed:", err);
+          setIsRedirecting(false);
+        }
+      }
+    };
+
+    handleRedirect();
+  }, [isUserAuthenticated, regularUser, router, redirectTo, isRedirecting, recheckSession]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,17 +70,6 @@ export default function LoginPage() {
         return;
       }
 
-      const deliveryResult = await deliveryLogin(email, password);
-
-      if (deliveryResult) {
-        toast({
-          title: "Connexion livreur réussie !",
-          description: "Bienvenue, partenaire de livraison !",
-        });
-        router.replace("/delivery/dashboard");
-        return;
-      }
-
       setError(userResult.error || "Email ou mot de passe incorrect");
     } catch (err) {
       console.error("Erreur de connexion :", err);
@@ -78,13 +80,17 @@ export default function LoginPage() {
   };
 
   const handleSocialLogin = (provider: string) => {
+    if (provider === "Google") {
+      window.location.href = `${apiUrl}/auth/google`;
+      return;
+    }
     toast({
       title: "Bientôt disponible",
       description: `La connexion via ${provider} sera bientôt disponible !`,
     });
   };
 
-  if (isUserAuthenticated || isDeliveryAuthenticated) {
+  if (isUserAuthenticated && !isRedirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
         <div className="text-center">
@@ -119,6 +125,34 @@ export default function LoginPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleSocialLogin("Google")}
+              className="w-full bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              disabled={isLoading}
+            >
+              <Image
+                src="/google.png" // Ensure this Google logo image exists in the public directory
+                alt="Google Logo"
+                width={20}
+                height={20}
+                className="object-contain mr-2"
+              />
+              <span className="text-gray-700 dark:text-gray-300">Continuer avec Google</span>
+            </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white dark:bg-gray-900 px-2 text-gray-500 dark:text-gray-400">
+                  Ou continuer avec
+                </span>
+              </div>
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -190,50 +224,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <Separator className="w-full" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white dark:bg-gray-900 px-2 text-gray-500 dark:text-gray-400">
-                  Ou continuer avec
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleSocialLogin("Google")}
-                className="col-span-2 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                disabled={isLoading}
-              >
-                <Chrome className="h-4 w-4 mr-2 text-red-500" />
-                <span className="text-gray-700 dark:text-gray-300">Google</span>
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleSocialLogin("Facebook")}
-                className="bg-blue-600 hover:bg-blue-700 border-blue-600 text-white transition-colors"
-                disabled={isLoading}
-              >
-                <Facebook className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleSocialLogin("Apple")}
-              className="w-full bg-black hover:bg-gray-800 border-black text-white dark:bg-gray-900 dark:hover:bg-gray-800 dark:border-gray-700 transition-colors"
-              disabled={isLoading}
-            >
-              <Apple className="h-4 w-4 mr-2" />
-              Continuer avec Apple
-            </Button>
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-2">

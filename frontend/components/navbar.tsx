@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useCart } from "@/hooks/use-cart"
 import { useAuth } from "@/hooks/use-auth"
+import { decryptData } from "@/lib/security"
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false)
@@ -53,47 +54,26 @@ export default function Navbar() {
   const { user, isAuthenticated, logout, isLoading } = useAuth()
 
   const [avatarUrl, setAvatarUrl] = useState<string>("")
-  const [avatarLoading, setAvatarLoading] = useState<boolean>(false)
-
-  const fetchUserAvatar = async (userId: number) => {
-    if (!userId) return
-
-    setAvatarLoading(true)
-    try {
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/profile/${userId}/avatar`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-        },
-        mode: "cors",
-      })
-
-      if (response.ok) {
-        const avatarUrl = await response.text()
-        setAvatarUrl(avatarUrl)
-      } else {
-        console.warn(`Avatar API returned ${response.status}: ${response.statusText}`)
-        // Fallback to default avatar if API fails
-        setAvatarUrl("/Placeholder.png?height=32&width=32")
-      }
-    } catch (error) {
-      console.error("Error fetching avatar:", error)
-      const fallbackAvatar =
-        "https://i.ibb.co/C3R4f9gT/user.png"
-      setAvatarUrl(fallbackAvatar)
-    } finally {
-      setAvatarLoading(false)
-    }
-  }
 
   useEffect(() => {
-    if (isAuthenticated && user?.id) {
-      fetchUserAvatar(Number(user.id))
-    } else {
-      setAvatarUrl("")
+    const fetchUserAvatarFromLocalStorage = async () => {
+      const encryptedUser = localStorage.getItem("auth_user")
+      if (encryptedUser && isAuthenticated) {
+        try {
+          const decryptedUserData = await decryptData(encryptedUser)
+          const userData = JSON.parse(decryptedUserData)
+          setAvatarUrl(userData.user?.avatar || "/Placeholder.png?height=32&width=32")
+        } catch (error) {
+          console.error("Error decrypting user data:", error)
+          setAvatarUrl("/Placeholder.png?height=32&width=32")
+        }
+      } else {
+        setAvatarUrl("")
+      }
     }
-  }, [isAuthenticated, user?.id])
+
+    fetchUserAvatarFromLocalStorage()
+  }, [isAuthenticated])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -365,11 +345,7 @@ export default function Navbar() {
                     className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground"
                   >
                     <img
-                      src={
-                        avatarLoading
-                          ? "/Placeholder.png?height=32&width=32"
-                          : avatarUrl || "/Placeholder.png?height=32&width=32"
-                      }
+                      src={avatarUrl || "/Placeholder.png?height=32&width=32"}
                       alt={user.name}
                       className="w-8 h-8 rounded-full border-2 border-[#01A0EA]"
                       onError={(e) => {
@@ -506,11 +482,7 @@ export default function Navbar() {
                 <DropdownMenuTrigger asChild>
                   <button className="w-full flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                     <img
-                      src={
-                        avatarLoading
-                          ? "/Placeholder.png?height=40&width=40"
-                          : avatarUrl || "/Placeholder.png?height=40&width=40"
-                      }
+                      src={avatarUrl || "/Placeholder.png?height=40&width=40"}
                       alt={user.name}
                       className="w-10 h-10 rounded-full border-2 border-[#01A0EA]"
                       onError={(e) => {

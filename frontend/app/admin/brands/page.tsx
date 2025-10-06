@@ -75,11 +75,12 @@ export default function BrandsPage() {
     isActive: true,
     isFeatured: false,
   })
+  const url = process.env.NEXT_PUBLIC_API_URL
 
   const fetchBrands = async () => {
     try {
       setLoading(true)
-      const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/brands?includeProducts=false&includeCount=true", {
+      const response = await fetch("${url}/admin/brands?includeProducts=false&includeCount=true", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -126,7 +127,7 @@ export default function BrandsPage() {
     }
 
     try {
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/brands/${selectedBrand.id}`, {
+      const response = await fetch(`${url}/admin/brands/${selectedBrand.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -175,8 +176,8 @@ export default function BrandsPage() {
 
     try {
       const endpoint = currentStatus
-        ? `https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/brands/${brandId}/deactivate`
-        : `https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/brands/${brandId}/activate`
+        ? `${url}/admin/brands/${brandId}/deactivate`
+        : `${url}/admin/brands/${brandId}/activate`
       const response = await fetch(endpoint, {
         method: "PUT",
         headers: {
