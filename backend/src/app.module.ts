@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import type { IncomingHttpHeaders } from 'http';
-import { readFileSync } from 'node:fs';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { RequestLoggingInterceptor } from './common/interceptors/request-logging.interceptor';
 import { BatchModule } from './batch/batch.module';
@@ -48,9 +47,10 @@ async function ensureDatabaseExists() {
     user,
     password,
     waitForConnections: true,
-    ssl: {
-      ca: readFileSync(process.env.DB_CA_CERT_PATH!, 'utf-8'),
-    },
+    ssl:
+      process.env.NODE_ENV === 'production'
+        ? { ca: process.env.DB_CA_CERT_PATH!.replace(/\\n/g, '\n') }
+        : undefined,
   });
 
   try {
@@ -93,9 +93,10 @@ async function ensureDatabaseExists() {
             CartItem,
           ],
           synchronize: process.env.NODE_ENV !== 'production', // jamais en prod !
-          ssl: {
-            ca: readFileSync(process.env.DB_CA_CERT_PATH!, 'utf-8'),
-          },
+          ssl:
+            process.env.NODE_ENV === 'production'
+              ? { ca: process.env.DB_CA_CERT_PATH!.replace(/\\n/g, '\n') }
+              : undefined,
         } as const;
       },
     }),
