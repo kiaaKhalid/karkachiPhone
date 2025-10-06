@@ -191,4 +191,36 @@ export class PublicProductsService {
       },
     };
   }
+
+  async topOrdered(limit: number): Promise<{
+    success: true;
+    message: string;
+    data: Product[];
+  }> {
+    const take = Math.min(Math.max(limit, 1), 50);
+    const qb = this.repo
+      .createQueryBuilder('p')
+      .leftJoin('p.orderItems', 'oi')
+      .where('p.isActive = 1')
+      .groupBy('p.id')
+      .orderBy('COUNT(oi.id)', 'DESC')
+      .limit(take);
+
+    const items = await qb.getMany();
+    return { success: true as const, message: 'OK', data: items };
+  }
+
+  // O(1): single query selecting only the main image column
+  async getImageById(id: string): Promise<string> {
+    const row = await this.repo
+      .createQueryBuilder('p')
+      .select('p.image', 'image')
+      .where('p.id = :id', { id })
+      .getRawOne<{ image?: string }>();
+
+    if (!row || !row.image) {
+      throw new NotFoundException('Product not found');
+    }
+    return row.image;
+  }
 }

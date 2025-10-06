@@ -9,22 +9,14 @@ import type { RequestHandler } from 'express';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Security: strict CORS configuration
+  // ✅ CORS strict avec credentials
   const allowOrigin = (process.env.CORS_ORIGIN || 'http://localhost:3000')
     .split(',')
     .map((s: string) => s.trim())
     .filter(Boolean);
 
   app.enableCors({
-    origin: (
-      origin: string | undefined,
-      cb: (err: Error | null, allow?: boolean) => void,
-    ) => {
-      // Allow non-browser tools without Origin (e.g., curl, Postman)
-      if (!origin) return cb(null, true);
-      if (allowOrigin.includes(origin)) return cb(null, true);
-      return cb(new Error('CORS: Origin not allowed'), false);
-    },
+    origin: allowOrigin,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: [
@@ -44,18 +36,17 @@ async function bootstrap() {
     optionsSuccessStatus: 204,
   });
 
-  // Security headers (XSS, Clickjacking, MIME sniffing)
+  // ✅ Security headers
   const helmetOptions = {
     contentSecurityPolicy:
       process.env.NODE_ENV === 'production' ? undefined : false,
     crossOriginEmbedderPolicy: false,
   } as const;
-  // Cast Helmet factory to a typed function to satisfy eslint no-unsafe rules in environments without Helmet TS types
-  const helmetFactory = helmet as unknown as (opts?: unknown) => RequestHandler;
-  const helmetMiddleware = helmetFactory(helmetOptions);
-  app.use(helmetMiddleware);
 
-  // Validation for DTOs
+  const helmetFactory = helmet as unknown as (opts?: unknown) => RequestHandler;
+  app.use(helmetFactory(helmetOptions));
+
+  // ✅ Validation globale pour DTOs
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -64,16 +55,15 @@ async function bootstrap() {
     }),
   );
 
-  // Cookies only (CSRF disabled)
+  // ✅ Cookies parsing
   const cookieSecret = process.env.COOKIE_SECRET || 'change-me-cookie-secret';
   app.use(cookieParser(cookieSecret));
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
+  console.log(`Application running on: http://localhost:${port}`);
 }
 
-// Properly handle the bootstrap promise
 bootstrap().catch((error: Error) => {
   console.error('Failed to start application:', error);
   process.exit(1);

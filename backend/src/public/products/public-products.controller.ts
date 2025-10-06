@@ -88,6 +88,13 @@ export class PublicProductsController {
     );
   }
 
+  @ApiOperation({ summary: 'Produits les plus commandés' })
+  @Get('top-ordered')
+  async topOrdered(): Promise<PublicMany> {
+    const take = 9;
+    return await this.service.topOrdered(take);
+  }
+
   @ApiOperation({ summary: 'Produits par marque (pagination + filtres)' })
   @Get('brand/:brandId')
   async byBrand(
@@ -108,6 +115,15 @@ export class PublicProductsController {
     const { page, limit, ...filters } = q as unknown as PublicPaginationDto &
       PublicProductsFilterDto;
     return await this.service.list({ page, limit }, { ...filters, categoryId });
+  }
+
+  @ApiOperation({ summary: "Image principale d'un produit (O(1))" })
+  @Get(':id/image')
+  async getImage(
+    @Param() { id }: ProductIdParamDto,
+  ): Promise<{ success: true; message: string; data: { image: string } }> {
+    const image = await this.service.getImageById(id);
+    return { success: true, message: 'OK', data: { image } };
   }
 
   @ApiOperation({ summary: 'Détail produit par ID (public)' })

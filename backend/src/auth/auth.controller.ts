@@ -1,6 +1,5 @@
 import {
   Body,
-  BadRequestException,
   Controller,
   Get,
   HttpCode,
@@ -12,7 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import type { Response, Request } from 'express';
+import type { Response, Request, CookieOptions } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
@@ -91,17 +90,12 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const payload = dto as unknown as Record<string, unknown>;
-    const emailVal = payload['email'];
-    const passVal = payload['password'];
-    if (typeof emailVal !== 'string' || typeof passVal !== 'string') {
-      throw new BadRequestException('Invalid login payload');
-    }
-    const email = emailVal;
-    const password = passVal;
+    const { email, password } = dto;
+
     const user = await this.authService.validateUser(email, password);
     const { accessToken, refreshToken } = await this.authService.login(user);
     this.setRefreshCookie(res, refreshToken);
+
     return {
       accessToken,
       user: {
@@ -109,6 +103,7 @@ export class AuthController {
         email: user.email,
         role: user.role,
         name: user.name,
+        avatar: user.avatarUrl || 'https://i.ibb.co/C3R4f9gT/user.png',
       },
     };
   }
@@ -121,30 +116,22 @@ export class AuthController {
   ) {
     const rt = this.readRefreshCookie(req);
     if (!rt) return { accessToken: null, user: null };
+
     const resTokens = await this.authService.refreshByToken(rt);
     if (!resTokens) return { accessToken: null, user: null };
-    const { accessToken, refreshToken } = resTokens;
-    const u = (resTokens.user ?? {}) as {
-      id?: unknown;
-      name?: unknown;
-      email?: unknown;
-      role?: unknown;
-      avatarUrl?: unknown;
-    };
-    const safeUser = {
-      id: typeof u.id === 'string' ? u.id : '',
-      name: typeof u.name === 'string' ? u.name : undefined,
-      email: typeof u.email === 'string' ? u.email : '',
-      role: (u.role as Role) ?? Role.USER,
-      avatar:
-        typeof u.avatarUrl === 'string' && u.avatarUrl
-          ? u.avatarUrl
-          : 'https://i.ibb.co/C3R4f9gT/user.png',
-    };
+
+    const { accessToken, refreshToken, user } = resTokens;
     this.setRefreshCookie(res, refreshToken);
+
     return {
       accessToken,
-      user: safeUser,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.name,
+        avatar: user.avatarUrl || 'https://i.ibb.co/C3R4f9gT/user.png',
+      },
     };
   }
 
@@ -162,8 +149,9 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      path: '/', // IMPORTANT
+      path: '/',
     });
+
     const userId = req.user?.id ?? 'unknown';
     const ip = (req.headers['x-forwarded-for'] as string) || req.ip;
     const ua = req.headers['user-agent'] || 'unknown';
@@ -176,13 +164,11 @@ export class AuthController {
       if (rt) await this.authService.logoutByToken(rt);
     }
 
-    res.clearCookie(REFRESH_COOKIE, this.cookieOptions());
-
     return { success: true, message: 'Déconnexion réussie' };
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.USER, Role.LIVREUR, Role.ADMIN, Role.SUPER_ADMIN)
   @Get('me')
   me(@Req() req: Request & { user: JwtRequestUser }) {
     return req.user;
@@ -201,65 +187,67 @@ export class AuthController {
     @Req()
     req: Request & {
       user?: {
-        email?: unknown;
-        name?: unknown;
-        avatarUrl?: unknown;
-        emailVerified?: unknown;
+        id?: string;
+        email?: string;
+        name?: string;
+        avatarUrl?: string;
+        emailVerified?: boolean;
       };
     },
     @Res() res: Response,
   ) {
     try {
       const userPayload = req.user ?? {};
-      const email =
-        typeof userPayload.email === 'string' ? userPayload.email : null;
-      const name =
-        typeof userPayload.name === 'string' ? userPayload.name : undefined;
-      const avatarUrl =
-        typeof userPayload.avatarUrl === 'string'
-          ? userPayload.avatarUrl
-          : undefined;
-      const emailVerified = Boolean(
-        (userPayload as { emailVerified?: unknown }).emailVerified,
-      );
 
-      if (!email) {
+      if (!userPayload.email) {
         return res.redirect(
-          'http://localhost:3000/auth/login?error=google_auth_failed',
+          `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/login?error=google_auth_failed`,
         );
       }
 
-      const { refreshToken } = await this.authService.loginWithGoogle({
-        email,
-        name,
-        avatarUrl,
-        emailVerified,
-      });
+      const { accessToken, refreshToken, user } =
+        await this.authService.loginWithGoogle({
+          email: userPayload.email,
+          name: userPayload.name,
+          avatarUrl: userPayload.avatarUrl,
+          emailVerified: userPayload.emailVerified,
+        });
 
-      // Stocker le refresh token
+      // Set refresh token as httpOnly cookie
       this.setRefreshCookie(res, refreshToken);
 
-      // Rediriger SANS params sensibles
-      return res.redirect('http://localhost:3000/auth/google/callback');
+      // Redirect to frontend with success and token
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      return res.redirect(
+        `${frontendUrl}/auth/google/callback?success=true&token=${accessToken}&user=${encodeURIComponent(JSON.stringify(user))}`,
+      );
     } catch (error: unknown) {
       console.error('Google callback error:', error);
-      if (error instanceof Error) {
-        console.error('Error details:', error.message);
-      }
-      return res.redirect(
-        'http://localhost:3000/auth/login?error=google_auth_error',
-      );
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      return res.redirect(`${frontendUrl}/auth/login?error=google_auth_error`);
     }
   }
 
-  private cookieOptions() {
+  // Endpoint for frontend to get user data after Google login
+  @UseGuards(JwtAuthGuard)
+  @Get('google/success')
+  googleSuccess(@Req() req: Request & { user: JwtRequestUser }) {
+    return {
+      user: req.user,
+      accessToken: req.headers.authorization?.replace('Bearer ', ''),
+    };
+  }
+
+  private cookieOptions(): CookieOptions {
     const isProd = process.env.NODE_ENV === 'production';
     return {
       httpOnly: true,
       secure: isProd,
-      sameSite: 'strict' as const,
-      path: '/api/auth',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      // For cross-site cookies with credentials, browsers require SameSite=None and Secure over HTTPS.
+      // In development (non-HTTPS), keep Lax to avoid rejection by the browser.
+      sameSite: isProd ? 'none' : 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     };
   }
 

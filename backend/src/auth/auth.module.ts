@@ -14,24 +14,20 @@ import { ThrottlerModule } from '@nestjs/throttler';
 @Module({
   imports: [
     PassportModule,
-
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'change-me-access-secret',
       signOptions: { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '7d' },
     }),
-
     TypeOrmModule.forFeature([User]),
     UsersModule,
 
-    // ✅ Mailer config async (corrige l’erreur ESLint)
-
+    // Mailer
     MailerModule.forRootAsync({
       useFactory: () => ({
-        // Gmail SMTP defaults; can be overridden via env variables
         transport: {
           host: process.env.SMTP_HOST || 'smtp.gmail.com',
           port: Number(process.env.SMTP_PORT) || 587,
-          secure: false, // STARTTLS on 587
+          secure: false,
           requireTLS: true,
           auth: {
             user:
@@ -39,19 +35,16 @@ import { ThrottlerModule } from '@nestjs/throttler';
             pass: process.env.SMTP_PASS || '',
           },
         },
-        defaults: {
-          from:
-            process.env.MAIL_FROM || process.env.SMTP_USER || 'you@gmail.com',
-        },
+        defaults: { from: process.env.MAIL_FROM || 'you@gmail.com' },
       }),
     }),
 
-    // ✅ Throttler config async (corrige aussi l’erreur ESLint)
-
+    // Throttler
     ThrottlerModule.forRootAsync({
+      // New API expects an array of throttler options; ttl is in milliseconds
       useFactory: () => [
         {
-          ttl: 15 * 60, // 15 minutes en secondes
+          ttl: 15 * 60 * 1000, // 15 minutes
           limit: 100,
         },
       ],

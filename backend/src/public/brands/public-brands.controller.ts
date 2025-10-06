@@ -1,6 +1,10 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { PublicBrandsService, PublicBrandLogo } from './public-brands.service';
+import {
+  PublicBrandsService,
+  PublicBrandLogo,
+  PublicBrandDetails,
+} from './public-brands.service';
 
 @ApiTags('Public - Brands')
 @Controller('api/public/brands')
@@ -16,6 +20,20 @@ export class PublicBrandsController {
     data: PublicBrandLogo[];
   }> {
     const data = await this.service.listLogos();
+    return { success: true, message: 'OK', data } as const;
+  }
+
+  @ApiOperation({ summary: "Détails d'une marque par ID (public)" })
+  @ApiResponse({
+    status: 200,
+    description: 'Détails de la marque {id, name, logoUrl, description}',
+  })
+  @ApiResponse({ status: 404, description: 'Marque non trouvée' })
+  @Get(':id')
+  async getBrand(
+    @Param('id') id: string,
+  ): Promise<{ success: true; message: string; data: PublicBrandDetails }> {
+    const data = await this.service.getBrandById(id);
     return { success: true, message: 'OK', data } as const;
   }
 }

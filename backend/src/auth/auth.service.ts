@@ -361,8 +361,8 @@ export class AuthService {
     name?: string;
     avatarUrl?: string | null;
     emailVerified?: boolean;
-  }): Promise<{ refreshToken: string; user: User }> {
-    // Suppression de accessToken (géré par refresh)
+  }): Promise<{ accessToken: string; refreshToken: string; user: User }> {
+    // Retourne accessToken et refreshToken pour correspondre au contrôleur
     const user = await this.usersService.findOrCreateOAuthUser({
       provider: AuthProvider.GOOGLE,
       email: profile.email,
@@ -370,8 +370,8 @@ export class AuthService {
       avatarUrl: profile.avatarUrl,
       emailVerified: profile.emailVerified,
     });
-    const { refreshToken } = await this.login(user); // Seulement refresh ici
-    return { refreshToken, user };
+    const { accessToken, refreshToken } = await this.login(user);
+    return { accessToken, refreshToken, user };
   }
 
   private async signAccessToken(user: User): Promise<string> {

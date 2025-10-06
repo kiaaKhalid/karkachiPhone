@@ -97,7 +97,10 @@ export class ReviewsService {
     const take = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * take;
 
-    const base = this.reviews.createQueryBuilder('r').leftJoin('r.user', 'u');
+    const base = this.reviews
+      .createQueryBuilder('r')
+      .leftJoin('r.user', 'u')
+      .leftJoin('r.product', 'p');
     const totalRow = await base
       .clone()
       .select('COUNT(*)', 'cnt')
@@ -116,6 +119,7 @@ export class ReviewsService {
         'r.createdAt AS r_createdAt',
         'u.name AS u_name',
         'u.avatarUrl AS u_avatarUrl',
+        'p.name AS p_name',
       ])
       .orderBy('r.createdAt', 'DESC')
       .take(take)
@@ -130,6 +134,7 @@ export class ReviewsService {
         r_createdAt: Date;
         u_name: string | null;
         u_avatarUrl: string | null;
+        p_name: string | null;
       }>();
 
     const items = rows.map((r) => ({
@@ -142,6 +147,7 @@ export class ReviewsService {
       createdAt: r.r_createdAt,
       userName: r.u_name ?? null,
       userImage: r.u_avatarUrl ?? null,
+      productName: r.p_name ?? null,
     }));
 
     return { items, total, page: Math.max(page, 1), limit: take } as const;
