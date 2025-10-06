@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import type { IncomingHttpHeaders } from 'http';
+import { readFileSync } from 'node:fs';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { RequestLoggingInterceptor } from './common/interceptors/request-logging.interceptor';
 import { BatchModule } from './batch/batch.module';
@@ -35,11 +36,11 @@ import { OrdersModule } from './orders/orders.module';
 import { ProfileModule } from './profile/profile.module';
 
 async function ensureDatabaseExists() {
-  const host = process.env.DB_HOST || 'localhost';
+  const host = process.env.DB_HOST!;
   const port = Number(process.env.DB_PORT || 3306);
-  const user = process.env.DB_USER || 'root';
-  const password = process.env.DB_PASSWORD || '';
-  const database = process.env.DB_NAME || 'karkachi_phone';
+  const user = process.env.DB_USER!;
+  const password = process.env.DB_PASSWORD!;
+  const database = process.env.DB_NAME!;
 
   const pool = createPool({
     host,
@@ -47,7 +48,11 @@ async function ensureDatabaseExists() {
     user,
     password,
     waitForConnections: true,
+    ssl: {
+      ca: readFileSync(process.env.DB_CA_CERT_PATH!, 'utf-8'),
+    },
   });
+
   try {
     await pool.query(
       `CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`,
@@ -62,18 +67,17 @@ async function ensureDatabaseExists() {
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       useFactory: async () => {
-        // In non-production, ensure DB exists to allow auto table creation
         if (process.env.NODE_ENV !== 'production') {
           await ensureDatabaseExists();
         }
+
         return {
           type: 'mysql',
-          host: process.env.DB_HOST || 'localhost',
-          port: Number(process.env.DB_PORT || 3306),
-          username: process.env.DB_USER || 'root',
-          password: process.env.DB_PASSWORD || '',
-          database: process.env.DB_NAME || 'karkachi_phone',
-          // autoLoadEntities: true can be used, but we list entities explicitly for clarity
+          host: process.env.DB_HOST,
+          port: Number(process.env.DB_PORT),
+          username: process.env.DB_USER,
+          password: process.env.DB_PASSWORD,
+          database: process.env.DB_NAME,
           entities: [
             User,
             Review,
@@ -88,8 +92,10 @@ async function ensureDatabaseExists() {
             Cart,
             CartItem,
           ],
-          synchronize: process.env.NODE_ENV !== 'production',
-          // logging: process.env.TYPEORM_LOGGING === 'true',
+          synchronize: process.env.NODE_ENV !== 'production', // jamais en prod !
+          ssl: {
+            ca: readFileSync(process.env.DB_CA_CERT_PATH!, 'utf-8'),
+          },
         } as const;
       },
     }),
