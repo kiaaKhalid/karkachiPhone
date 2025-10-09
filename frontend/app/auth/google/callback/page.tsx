@@ -1,44 +1,67 @@
-// app/auth/google/callback/page.tsx
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { encryptData } from "@/lib/security";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-
 export default function GoogleCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { setUser, recheckSession, user: regularUser, isAuthenticated: isUserAuthenticated } = useAuth();
+  const { setUser } = useAuth();
+  // Changé en string | null pour stocker la cible de redirection
+  const [isRedirecting, setIsRedirecting] = useState<string | null>(null);
 
   const success = searchParams.get("success");
   const token = searchParams.get("token");
   const userStr = searchParams.get("user");
-  const error = searchParams.get("error");
+  // Correction pour le premier TS error : check explicite pour éviter la comparaison implicite
+  const hasError = searchParams.get("error") !== null && searchParams.get("error") !== undefined;
+
+  // Effet pour forcer la redirection une fois isRedirecting activé
+  useEffect(() => {
+    if (isRedirecting) {
+      console.log("🔄 Force redirect triggered to:", isRedirecting);
+      // Utilise window.location pour une redirection hard (plus fiable que router.replace dans ce contexte)
+      window.location.href = window.location.origin + isRedirecting;
+    }
+  }, [isRedirecting]);
 
   useEffect(() => {
-    if (error) {
-      toast({
-        title: "Erreur de connexion Google",
-        description: "Une erreur s'est produite lors de la connexion avec Google.",
-        variant: "destructive",
+    const handleCallback = async () => {
+      console.log("🔵 Google callback params:", { 
+        success, 
+        hasToken: !!token, 
+        hasUserStr: !!userStr, 
+        error: searchParams.get("error") 
       });
-      router.replace("/auth/login");
-      return;
-    }
 
-    if (success === "true" && token && userStr) {
-      const handleSuccess = async () => {
+      if (hasError) {
+        const errorMsg = searchParams.get("error") || "Erreur inconnue";
+        console.error("❌ Google auth error:", errorMsg);
+        toast({
+          title: "Erreur de connexion Google",
+          description: "Une erreur s'est produite lors de la connexion avec Google.",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = window.location.origin + '/auth/login';
+        }, 2000);
+        return;
+      }
+
+      if (success === "true" && token && userStr) {
         try {
           let userData: any = null;
 
-          // 🔹 Tentative de décodage du paramètre `user`
+          // Parse userStr (URL decoded JSON)
           try {
-            userData = JSON.parse(decodeURIComponent(userStr));
+            const decodedUserStr = decodeURIComponent(userStr);
+            console.log("📝 Decoded user string:", decodedUserStr);
+            userData = JSON.parse(decodedUserStr);
+            console.log("✅ Parsed user data:", userData);
           } catch (e) {
             console.error("❌ Erreur parsing userStr:", userStr, e);
             toast({
@@ -46,137 +69,113 @@ export default function GoogleCallbackPage() {
               description: "Impossible de lire les données utilisateur.",
               variant: "destructive",
             });
-            router.replace("/auth/login");
+            setTimeout(() => {
+              window.location.href = window.location.origin + '/auth/login';
+            }, 2000);
             return;
           }
 
-          // 🔹 Normalisation du rôle
+          // Normalize role - handle SUPER_ADMIN correctly
           const rawRole = userData.role || "user";
-          const userRole = rawRole.toString().toLowerCase().replace("-", "_");
+          console.log("🎭 Raw role:", rawRole);
+          
+          // Convert role to lowercase and handle different formats
+          const roleString = String(rawRole).toLowerCase().trim();
+          console.log("🔄 Normalized role string:", roleString);
 
-          const finalRole: "user" | "admin" | "super_admin" =
-            ["user", "admin", "super_admin"].includes(userRole)
-              ? (userRole as "user" | "admin" | "super_admin")
-              : "user";
+          // Handle all possible role formats
+          let finalRole: "user" | "admin" | "super_admin";
+          if (roleString === "super_admin" || roleString === "super admin") {
+            finalRole = "super_admin";
+          } else if (roleString === "admin") {
+            finalRole = "admin";
+          } else {
+            finalRole = "user";
+          }
+
+          console.log("🎯 Final role:", finalRole);
 
           const authUser = {
             id: userData.id,
-            name: userData.name || "",
+            name: userData.name || userData.email?.split("@")[0] || "Utilisateur",
             email: userData.email,
             role: finalRole,
-            avatar:
-              userData.avatarUrl ||
-              userData.avatar ||
-              "https://i.ibb.co/C3R4f9gT/user.png?height=40&width=40",
+            avatar: userData.avatarUrl || userData.avatar || "https://i.ibb.co/C3R4f9gT/user.png?height=40&width=40",
             phone: userData.phone || "",
-            address: "",
-            createdAt: new Date().toISOString(),
+            address: userData.address || "",
+            createdAt: userData.createdAt || new Date().toISOString(),
             lastLogin: new Date().toISOString(),
           };
 
-          // 🔹 Stockage sécurisé
-          localStorage.setItem("auth_token", token);
-          const encryptedUser = await encryptData(JSON.stringify(authUser));
-          localStorage.setItem("auth_user", encryptedUser);
+          console.log("👤 Auth user to store:", authUser);
 
+          // Stockage dans localStorage
+          localStorage.setItem("auth_token", token);
+          try {
+            const encryptedUser = await encryptData(JSON.stringify(authUser));
+            localStorage.setItem("auth_user", encryptedUser);
+            console.log("💾 User data stored successfully");
+          } catch (encryptError) {
+            console.error("❌ Encryption error, storing without encryption:", encryptError);
+            // Fallback: store without encryption
+            localStorage.setItem("auth_user", JSON.stringify(authUser));
+          }
+
+          // Mise à jour du contexte auth
           await setUser(authUser);
-          await recheckSession();
+          console.log("✅ Auth context updated");
 
           toast({
             title: "Connexion Google réussie !",
             description: `Bienvenue, ${authUser.name} !`,
           });
 
+          // Determine redirect URL based on role
           const targetUrl = ["admin", "super_admin"].includes(authUser.role)
             ? "/admin"
             : "/";
-          router.replace(targetUrl);
+
+          console.log("🔄 Redirecting to:", targetUrl);
+          
+          // Active l'état de redirection (le useEffect ci-dessus gérera la redirection hard)
+          setIsRedirecting(targetUrl);
+
         } catch (err) {
-          console.error("Erreur callback Google:", err);
+          console.error("❌ Erreur callback Google:", err);
           toast({
             title: "Erreur de connexion",
-            description: "Impossible de traiter la réponse Google.",
+            description: "Impossible de traiter la réponse Google. Veuillez réessayer.",
             variant: "destructive",
           });
-          router.replace("/auth/login");
+          setTimeout(() => {
+            window.location.href = window.location.origin + '/auth/login';
+          }, 2000);
         }
-      };
+      } else {
+        // Fallback si paramètres manquants
+        console.warn("⚠️ Missing parameters in callback:", { success, token, userStr });
+        toast({
+          title: "Paramètres manquants",
+          description: "Les informations de connexion sont incomplètes.",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = window.location.origin + '/auth/login';
+        }, 2000);
+      }
+    };
 
-      handleSuccess();
-    } else {
-      // 🔹 Si pas de `userStr`, on tente un refresh
-      const handleFallback = async () => {
-        try {
-          const response = await fetch(`${apiUrl}/auth/refresh`, {
-            method: "POST",
-            credentials: "include",
-          });
+    handleCallback();
+  }, [success, token, userStr, hasError, toast, setUser]);
 
-          if (!response.ok) throw new Error("Failed to refresh");
-
-          const data = await response.json();
-
-          if (data.accessToken && data.user) {
-            const rawRole = data.user.role || "user";
-            const userRole = rawRole.toString().toLowerCase().replace("-", "_");
-
-            const finalRole: "user" | "admin" | "super_admin" =
-              ["user", "admin", "super_admin"].includes(userRole)
-                ? (userRole as "user" | "admin" | "super_admin")
-                : "user";
-
-            const authUser = {
-              id: data.user.id,
-              name: data.user.name || "",
-              email: data.user.email,
-              role: finalRole,
-              avatar:
-                data.user.avatarUrl ||
-                data.user.avatar ||
-                "https://i.ibb.co/C3R4f9gT/user.png?height=40&width=40",
-              phone: data.user.phone || "",
-              address: "",
-              createdAt: new Date().toISOString(),
-              lastLogin: new Date().toISOString(),
-            };
-
-            localStorage.setItem("auth_token", data.accessToken);
-            const encryptedUser = await encryptData(JSON.stringify(authUser));
-            localStorage.setItem("auth_user", encryptedUser);
-
-            await setUser(authUser);
-            await recheckSession();
-
-            toast({
-              title: "Connexion réussie !",
-              description: `Bienvenue, ${authUser.name} !`,
-            });
-
-            const targetUrl = ["admin", "super_admin"].includes(authUser.role)
-              ? "/admin"
-              : "/";
-            router.replace(targetUrl);
-          } else {
-            router.replace("/auth/login");
-          }
-        } catch (err) {
-          console.error("Fallback refresh failed:", err);
-          router.replace("/auth/login");
-        }
-      };
-
-      handleFallback();
-    }
-  }, [success, token, userStr, error, router, toast, setUser, recheckSession]);
-
-  if (isUserAuthenticated && regularUser) {
+  // Si redirection en cours, affiche un message plus clair
+  if (isRedirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Redirection en cours...
-          </p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+          <p className="text-gray-600 dark:text-gray-400">Redirection en cours...</p>
+          <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">Cette page se ferme automatiquement</p>
         </div>
       </div>
     );
@@ -185,9 +184,15 @@ export default function GoogleCallbackPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Connexion en cours...
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-2">
+          Connexion en cours
+        </h2>
+        <p className="text-gray-600 dark:text-gray-400">
+          Traitement de votre connexion Google...
+        </p>
+        <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+          Cette page se fermera automatiquement
         </p>
       </div>
     </div>

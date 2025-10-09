@@ -10,55 +10,27 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Plus, X, Upload, Save, ArrowLeft } from "lucide-react"
+import { Plus, X, Save, ArrowLeft, Upload } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 
 interface BrandLogo {
-  id: number
+  id: string
   name: string
   logo: string
 }
 
 interface CategoryChoix {
-  id: number
+  id: string
   name: string
   image: string
 }
 
 interface SpecDTO {
-  name: string
+  key: string
   value: string
-}
-
-interface ProductCreateRequest {
-  name: string
-  brand: string
-  category: string
-  sku: string
-  description: string
-  price: number
-  originalPrice?: number
-  isOnPromotion: boolean
-  promotionEndDate?: string
-  stock: number
-  images: string[]
-  specs: SpecDTO[]
-  tags: string[]
-  isActive: boolean
-  costPrice?: number
-  barcode?: string
-  weight?: number
-  dimensions?: string
-  isFeatured: boolean
-  isDigital: boolean
-  requiresShipping: boolean
-  minStock?: number
-  maxStock?: number
-  imei?: string
 }
 
 export default function AddProductPage() {
@@ -78,37 +50,50 @@ export default function AddProductPage() {
     description: "",
     price: "",
     originalPrice: "",
-    category: "",
-    brand: "",
+    categoryId: "",
+    brandId: "",
     stock: "",
-    sku: "",
     isActive: true,
-    isOnPromotion: false,
-    promotionEndDate: "",
+    isFeatured: false,
+    reviewsCount: "",
+    isNew: false,
+    isBestSeller: false,
+    isFlashDeal: false,
+    flashPrice: "",
+    flashStartsAt: "",
+    flashEndsAt: "",
+    flashStock: "",
+    isPromotionalBanner: false,
+    isPromotional: false,
+    isProductphares: false,
+    isProductFlash: false,
+    mainImage: "",
     images: [] as string[],
     specs: [] as SpecDTO[],
-    tags: [] as string[],
-    costPrice: "",
-    barcode: "",
-    weight: "",
-    dimensions: "",
-    isFeatured: false,
-    isDigital: false,
-    requiresShipping: true,
-    minStock: "",
-    maxStock: "",
-    imei: "",
+    discount: 0,
   })
 
-  const [newSpec, setNewSpec] = useState({ name: "", value: "" })
-  const [newTag, setNewTag] = useState("")
+  const [newSpec, setNewSpec] = useState({ key: "", value: "" })
   const [newImageUrl, setNewImageUrl] = useState("")
+
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+  useEffect(() => {
+    const priceNum = parseFloat(formData.price) || 0
+    const originalPriceNum = parseFloat(formData.originalPrice) || 0
+    if (originalPriceNum > priceNum && priceNum > 0) {
+      const disc = Math.round(((originalPriceNum - priceNum) / originalPriceNum) * 100)
+      setFormData((prev) => ({ ...prev, discount: disc }))
+    } else {
+      setFormData((prev) => ({ ...prev, discount: 0 }))
+    }
+  }, [formData.price, formData.originalPrice])
 
   const fetchBrands = async () => {
     try {
       setBrandsLoading(true)
       setBrandsError(false)
-      const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/logo/brands", {
+      const response = await fetch(`${apiUrl}/public/brands/logo`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -117,8 +102,17 @@ export default function AddProductPage() {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
-      const data: BrandLogo[] = await response.json()
-      setBrands(data)
+      const fullData = await response.json()
+      if (!fullData.success) {
+        throw new Error(fullData.message || "Failed to fetch brands")
+      }
+      const data: any[] = fullData.data
+      const mappedBrands = data.map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        logo: b.logoUrl,
+      }))
+      setBrands(mappedBrands)
     } catch (error) {
       console.error("Error fetching brands:", error)
       setBrandsError(true)
@@ -136,7 +130,7 @@ export default function AddProductPage() {
     try {
       setCategoriesLoading(true)
       setCategoriesError(false)
-      const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/public/category/all", {
+      const response = await fetch(`${apiUrl}/public/category`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -170,12 +164,12 @@ export default function AddProductPage() {
   }
 
   const addSpec = () => {
-    if (newSpec.name && newSpec.value) {
+    if (newSpec.key && newSpec.value) {
       setFormData((prev) => ({
         ...prev,
-        specs: [...prev.specs, { name: newSpec.name, value: newSpec.value }],
+        specs: [...prev.specs, { key: newSpec.key, value: newSpec.value }],
       }))
-      setNewSpec({ name: "", value: "" })
+      setNewSpec({ key: "", value: "" })
     }
   }
 
@@ -183,23 +177,6 @@ export default function AddProductPage() {
     setFormData((prev) => ({
       ...prev,
       specs: prev.specs.filter((_, i) => i !== index),
-    }))
-  }
-
-  const addTag = () => {
-    if (newTag && !formData.tags.includes(newTag)) {
-      setFormData((prev) => ({
-        ...prev,
-        tags: [...prev.tags, newTag],
-      }))
-      setNewTag("")
-    }
-  }
-
-  const removeTag = (tag: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      tags: prev.tags.filter((t) => t !== tag),
     }))
   }
 
@@ -223,10 +200,10 @@ export default function AddProductPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.name || !formData.sku || !formData.price || !formData.category || !formData.stock) {
+    if (!formData.name || !formData.description || !formData.price || !formData.categoryId || !formData.brandId || !formData.stock || !formData.mainImage) {
       toast({
         title: "Error",
-        description: "Please fill in all required fields.",
+        description: "Please fill in all required fields and set a main image.",
         variant: "destructive",
       })
       return
@@ -235,34 +212,43 @@ export default function AddProductPage() {
     setIsSubmitting(true)
 
     try {
-      const requestData: ProductCreateRequest = {
+      const price = Number.parseFloat(formData.price)
+      const originalPrice = formData.originalPrice ? Number.parseFloat(formData.originalPrice) : undefined
+      const stock = Number.parseInt(formData.stock)
+      const reviewsCount = formData.reviewsCount ? Number.parseInt(formData.reviewsCount) : undefined
+      const flashPrice = formData.flashPrice ? Number.parseFloat(formData.flashPrice) : undefined
+      const flashStock = formData.flashStock ? Number.parseInt(formData.flashStock) : undefined
+
+      const requestData = {
         name: formData.name,
-        brand: formData.brand,
-        category: formData.category,
-        sku: formData.sku,
         description: formData.description,
-        price: Number.parseFloat(formData.price),
-        originalPrice: formData.originalPrice ? Number.parseFloat(formData.originalPrice) : undefined,
-        isOnPromotion: formData.isOnPromotion,
-        promotionEndDate: formData.promotionEndDate || undefined,
-        stock: Number.parseInt(formData.stock),
-        images: formData.images,
-        specs: formData.specs,
-        tags: formData.tags,
+        price,
+        originalPrice,
+        image: formData.mainImage,
+        stock,
+        rating: 0,
         isActive: formData.isActive,
-        costPrice: formData.costPrice ? Number.parseFloat(formData.costPrice) : undefined,
-        barcode: formData.barcode || undefined,
-        weight: formData.weight ? Number.parseFloat(formData.weight) : undefined,
-        dimensions: formData.dimensions || undefined,
         isFeatured: formData.isFeatured,
-        isDigital: formData.isDigital,
-        requiresShipping: formData.requiresShipping,
-        minStock: formData.minStock ? Number.parseInt(formData.minStock) : undefined,
-        maxStock: formData.maxStock ? Number.parseInt(formData.maxStock) : undefined,
-        imei: formData.imei || undefined,
+        reviewsCount,
+        isNew: formData.isNew,
+        isBestSeller: formData.isBestSeller,
+        discount: formData.discount,
+        isFlashDeal: formData.isFlashDeal,
+        flashPrice,
+        flashStartsAt: formData.flashStartsAt || null,
+        flashEndsAt: formData.flashEndsAt || null,
+        flashStock,
+        isPromotionalBanner: formData.isPromotionalBanner,
+        isPromotional: formData.isPromotional,
+        isProductphares: formData.isProductphares,
+        isProductFlash: formData.isProductFlash,
+        brandId: formData.brandId,
+        categoryId: formData.categoryId,
+        images: formData.images.map((url) => ({ url })),
+        specs: formData.specs.map((spec) => ({ key: spec.key, value: spec.value })),
       }
 
-      const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/products", {
+      const response = await fetch(`${apiUrl}/admin/products`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -277,6 +263,10 @@ export default function AddProductPage() {
       }
 
       const result = await response.json()
+      if (!result.success) {
+        throw new Error(result.message || "Failed to create product")
+      }
+
       console.log("[v0] Product created successfully:", result)
 
       toast({
@@ -305,7 +295,7 @@ export default function AddProductPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 -mt-20">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <Button variant="ghost" size="sm" asChild>
@@ -334,45 +324,36 @@ export default function AddProductPage() {
                 <CardDescription>Enter the basic details of your product</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Product Name *</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => handleInputChange("name", e.target.value)}
-                      placeholder="Enter product name"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="sku">SKU *</Label>
-                    <Input
-                      id="sku"
-                      value={formData.sku}
-                      onChange={(e) => handleInputChange("sku", e.target.value)}
-                      placeholder="Enter SKU"
-                      required
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Product Name *</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange("name", e.target.value)}
+                    placeholder="Enter product name"
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
+                  <Label htmlFor="description">Description *</Label>
                   <Textarea
                     id="description"
                     value={formData.description}
                     onChange={(e) => handleInputChange("description", e.target.value)}
                     placeholder="Enter product description"
                     rows={4}
+                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="barcode">Barcode</Label>
+                  <Label htmlFor="reviewsCount">Reviews Count</Label>
                   <Input
-                    id="barcode"
-                    value={formData.barcode}
-                    onChange={(e) => handleInputChange("barcode", e.target.value)}
-                    placeholder="Enter barcode"
+                    id="reviewsCount"
+                    type="number"
+                    min="0"
+                    value={formData.reviewsCount}
+                    onChange={(e) => handleInputChange("reviewsCount", e.target.value)}
+                    placeholder="0"
                   />
                 </div>
               </CardContent>
@@ -409,127 +390,81 @@ export default function AddProductPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="costPrice">Cost Price</Label>
+                    <Label>Discount (Auto-calculated)</Label>
                     <Input
-                      id="costPrice"
                       type="number"
-                      step="0.01"
-                      value={formData.costPrice}
-                      onChange={(e) => handleInputChange("costPrice", e.target.value)}
-                      placeholder="0.00"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="stock">Stock Quantity *</Label>
-                    <Input
-                      id="stock"
-                      type="number"
-                      value={formData.stock}
-                      onChange={(e) => handleInputChange("stock", e.target.value)}
-                      placeholder="0"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="minStock">Min Stock</Label>
-                    <Input
-                      id="minStock"
-                      type="number"
-                      value={formData.minStock}
-                      onChange={(e) => handleInputChange("minStock", e.target.value)}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="maxStock">Max Stock</Label>
-                    <Input
-                      id="maxStock"
-                      type="number"
-                      value={formData.maxStock}
-                      onChange={(e) => handleInputChange("maxStock", e.target.value)}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="promotion"
-                    checked={formData.isOnPromotion}
-                    onCheckedChange={(checked) => handleInputChange("isOnPromotion", checked)}
-                  />
-                  <Label htmlFor="promotion">On Promotion</Label>
-                </div>
-                {formData.isOnPromotion && (
-                  <div className="space-y-2">
-                    <Label htmlFor="promotionEndDate">Promotion End Date</Label>
-                    <Input
-                      id="promotionEndDate"
-                      type="datetime-local"
-                      value={formData.promotionEndDate}
-                      onChange={(e) => handleInputChange("promotionEndDate", e.target.value)}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Physical Properties</CardTitle>
-                <CardDescription>Set physical characteristics of the product</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="weight">Weight (kg)</Label>
-                    <Input
-                      id="weight"
-                      type="number"
-                      step="0.01"
-                      value={formData.weight}
-                      onChange={(e) => handleInputChange("weight", e.target.value)}
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="dimensions">Dimensions (L x W x H)</Label>
-                    <Input
-                      id="dimensions"
-                      value={formData.dimensions}
-                      onChange={(e) => handleInputChange("dimensions", e.target.value)}
-                      placeholder="e.g., 10 x 5 x 2 cm"
+                      value={formData.discount}
+                      readOnly
+                      className="bg-gray-100 dark:bg-gray-800"
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="imei">IMEI (International Mobile Equipment Identity)</Label>
-                  <div className="flex space-x-2">
-                    <Input
-                      id="imei"
-                      value={formData.imei}
-                      onChange={(e) => handleInputChange("imei", e.target.value)}
-                      placeholder="Enter IMEI number (15 digits)"
-                      maxLength={15}
-                      pattern="[0-9]{15}"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const randomImei = Math.floor(Math.random() * 1000000000000000)
-                          .toString()
-                          .padStart(15, "0")
-                        handleInputChange("imei", randomImei)
-                      }}
-                    >
-                      Generate
-                    </Button>
-                  </div>
-                  <p className="text-xs text-gray-500">IMEI is required for mobile phones and cellular devices</p>
+                  <Label htmlFor="stock">Stock Quantity *</Label>
+                  <Input
+                    id="stock"
+                    type="number"
+                    value={formData.stock}
+                    onChange={(e) => handleInputChange("stock", e.target.value)}
+                    placeholder="0"
+                    required
+                  />
                 </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="flashDeal"
+                    checked={formData.isFlashDeal}
+                    onCheckedChange={(checked) => handleInputChange("isFlashDeal", checked)}
+                  />
+                  <Label htmlFor="flashDeal">Flash Deal</Label>
+                </div>
+                {formData.isFlashDeal && (
+                  <div className="space-y-4 pt-4 border-t">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="flashPrice">Flash Price</Label>
+                        <Input
+                          id="flashPrice"
+                          type="number"
+                          step="0.01"
+                          value={formData.flashPrice}
+                          onChange={(e) => handleInputChange("flashPrice", e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="flashStock">Flash Stock</Label>
+                        <Input
+                          id="flashStock"
+                          type="number"
+                          value={formData.flashStock}
+                          onChange={(e) => handleInputChange("flashStock", e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="flashStartsAt">Flash Starts At</Label>
+                        <Input
+                          id="flashStartsAt"
+                          type="datetime-local"
+                          value={formData.flashStartsAt}
+                          onChange={(e) => handleInputChange("flashStartsAt", e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="flashEndsAt">Flash Ends At</Label>
+                        <Input
+                          id="flashEndsAt"
+                          type="datetime-local"
+                          value={formData.flashEndsAt}
+                          onChange={(e) => handleInputChange("flashEndsAt", e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -541,9 +476,9 @@ export default function AddProductPage() {
               <CardContent className="space-y-4">
                 <div className="flex space-x-2">
                   <Input
-                    placeholder="Specification name"
-                    value={newSpec.name}
-                    onChange={(e) => setNewSpec((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="Specification key"
+                    value={newSpec.key}
+                    onChange={(e) => setNewSpec((prev) => ({ ...prev, key: e.target.value }))}
                   />
                   <Input
                     placeholder="Specification value"
@@ -561,7 +496,7 @@ export default function AddProductPage() {
                       className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded"
                     >
                       <span className="text-sm">
-                        <strong>{spec.name}:</strong> {spec.value}
+                        <strong>{spec.key}:</strong> {spec.value}
                       </span>
                       <Button type="button" variant="ghost" size="sm" onClick={() => removeSpec(index)}>
                         <X className="h-4 w-4" />
@@ -577,6 +512,7 @@ export default function AddProductPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Product Status</CardTitle>
+                <CardDescription>Configure product visibility and features</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center space-x-2">
@@ -597,19 +533,51 @@ export default function AddProductPage() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <Switch
-                    id="digital"
-                    checked={formData.isDigital}
-                    onCheckedChange={(checked) => handleInputChange("isDigital", checked)}
+                    id="new"
+                    checked={formData.isNew}
+                    onCheckedChange={(checked) => handleInputChange("isNew", checked)}
                   />
-                  <Label htmlFor="digital">Digital Product</Label>
+                  <Label htmlFor="new">New</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Switch
-                    id="shipping"
-                    checked={formData.requiresShipping}
-                    onCheckedChange={(checked) => handleInputChange("requiresShipping", checked)}
+                    id="bestSeller"
+                    checked={formData.isBestSeller}
+                    onCheckedChange={(checked) => handleInputChange("isBestSeller", checked)}
                   />
-                  <Label htmlFor="shipping">Requires Shipping</Label>
+                  <Label htmlFor="bestSeller">Best Seller</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="promotionalBanner"
+                    checked={formData.isPromotionalBanner}
+                    onCheckedChange={(checked) => handleInputChange("isPromotionalBanner", checked)}
+                  />
+                  <Label htmlFor="promotionalBanner">Promotional Banner</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="promotional"
+                    checked={formData.isPromotional}
+                    onCheckedChange={(checked) => handleInputChange("isPromotional", checked)}
+                  />
+                  <Label htmlFor="promotional">Promotional</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="productphares"
+                    checked={formData.isProductphares}
+                    onCheckedChange={(checked) => handleInputChange("isProductphares", checked)}
+                  />
+                  <Label htmlFor="productphares">Product Phares</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="productFlash"
+                    checked={formData.isProductFlash}
+                    onCheckedChange={(checked) => handleInputChange("isProductFlash", checked)}
+                  />
+                  <Label htmlFor="productFlash">Product Flash</Label>
                 </div>
               </CardContent>
             </Card>
@@ -624,13 +592,13 @@ export default function AddProductPage() {
                   {categoriesLoading || categoriesError ? (
                     <Skeleton className="h-10 w-full" />
                   ) : (
-                    <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
+                    <Select value={formData.categoryId} onValueChange={(value) => handleInputChange("categoryId", value)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
                         {categories.map((category) => (
-                          <SelectItem key={category.id} value={category.name}>
+                          <SelectItem key={category.id} value={category.id}>
                             <div className="flex items-center space-x-2">
                               {category.image && (
                                 <img
@@ -648,17 +616,17 @@ export default function AddProductPage() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="brand">Brand</Label>
+                  <Label htmlFor="brand">Brand *</Label>
                   {brandsLoading || brandsError ? (
                     <Skeleton className="h-10 w-full" />
                   ) : (
-                    <Select value={formData.brand} onValueChange={(value) => handleInputChange("brand", value)}>
+                    <Select value={formData.brandId} onValueChange={(value) => handleInputChange("brandId", value)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select brand" />
                       </SelectTrigger>
                       <SelectContent>
                         {brands.map((brand) => (
-                          <SelectItem key={brand.id} value={brand.name}>
+                          <SelectItem key={brand.id} value={brand.id}>
                             <div className="flex items-center space-x-2">
                               {brand.logo && (
                                 <img
@@ -680,85 +648,81 @@ export default function AddProductPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Tags</CardTitle>
-                <CardDescription>Add tags to help customers find this product</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex space-x-2">
-                  <Input
-                    placeholder="Add tag"
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
-                  />
-                  <Button type="button" onClick={addTag} size="sm">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {formData.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary" className="flex items-center space-x-1">
-                      <span>{tag}</span>
-                      <button type="button" onClick={() => removeTag(tag)} className="ml-1 hover:text-red-500">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
                 <CardTitle>Product Images</CardTitle>
-                <CardDescription>Add product image URLs</CardDescription>
+                <CardDescription>Set the main image and add additional product image URLs</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex space-x-2">
-                  <Input
-                    placeholder="Enter image URL"
-                    value={newImageUrl}
-                    onChange={(e) => setNewImageUrl(e.target.value)}
-                    onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addImageUrl())}
-                  />
-                  <Button type="button" onClick={addImageUrl} size="sm">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
                 <div className="space-y-2">
-                  {formData.images.length === 0 ? (
-                    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center">
-                      <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        No images added yet. Add image URLs above.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                      {formData.images.map((url, index) => (
-                        <div key={index} className="relative group">
-                          <img
-                            src={url || "/placeholder.svg"}
-                            alt={`Product image ${index + 1}`}
-                            className="w-full h-20 object-cover rounded border"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement
-                              target.src = "/placeholder.svg?height=80&width=80"
-                            }}
-                          />
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => removeImage(url)}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ))}
+                  <Label htmlFor="mainImage">Main Image URL *</Label>
+                  <Input
+                    id="mainImage"
+                    placeholder="Enter main image URL"
+                    value={formData.mainImage}
+                    onChange={(e) => handleInputChange("mainImage", e.target.value)}
+                    required
+                  />
+                  {formData.mainImage && (
+                    <div className="relative group">
+                      <img
+                        src={formData.mainImage}
+                        alt="Main product image"
+                        className="w-full h-32 object-cover rounded border mt-2"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.src = "/placeholder.svg?height=128&width=100%"
+                        }}
+                      />
                     </div>
                   )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Additional Images</Label>
+                  <div className="flex space-x-2">
+                    <Input
+                      placeholder="Enter additional image URL"
+                      value={newImageUrl}
+                      onChange={(e) => setNewImageUrl(e.target.value)}
+                      onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addImageUrl())}
+                    />
+                    <Button type="button" onClick={addImageUrl} size="sm">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {formData.images.length === 0 ? (
+                      <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center">
+                        <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          No additional images added yet.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {formData.images.map((url, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={url || "/placeholder.svg"}
+                              alt={`Additional product image ${index + 1}`}
+                              className="w-full h-20 object-cover rounded border"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement
+                                target.src = "/placeholder.svg?height=80&width=80"
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => removeImage(url)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>

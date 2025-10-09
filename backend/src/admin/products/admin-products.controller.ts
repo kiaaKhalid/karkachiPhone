@@ -28,29 +28,17 @@ export class AdminProductsController {
 
   @ApiOperation({ summary: 'Liste des produits (pagination + filtres)' })
   @Get()
-  async list(
-    @Query() { limit, offset }: AdminProductsPaginationDto,
-    @Query('q') q?: string,
-    @Query('brandId') brandId?: string,
-    @Query('categoryId') categoryId?: string,
-    @Query('isActive') isActive?: string,
-  ) {
+  async list(@Query() dto: AdminProductsPaginationDto) {
+    const { limit, offset } = dto;
     const filters = {
-      q,
-      brandId,
-      categoryId,
-      isActive: typeof isActive === 'string' ? isActive === 'true' : undefined,
+      q: dto.q,
+      brandId: dto.brandId,
+      categoryId: dto.categoryId,
+      isActive:
+        typeof dto.isActive === 'string' ? dto.isActive === 'true' : undefined,
     };
     const result = await this.service.findAll(limit, offset, filters);
     return { success: true as const, message: 'OK', data: result };
-  }
-
-  @ApiOperation({ summary: "Détails d'un produit (toutes les informations)" })
-  @ApiResponse({ status: 200, description: 'Produit trouvé' })
-  @Get(':id')
-  async getOne(@Param('id') id: string) {
-    const product = await this.service.findOneFull(id);
-    return { success: true as const, message: 'OK', data: product };
   }
 
   @ApiOperation({ summary: 'Créer un produit' })
@@ -81,5 +69,13 @@ export class AdminProductsController {
   async active(@Param('id') id: string) {
     await this.service.setActive(id, true);
     return { success: true as const, message: 'Activated', data: null };
+  }
+
+  @ApiOperation({ summary: "Détails d'un produit (toutes les informations)" })
+  @ApiResponse({ status: 200, description: 'Produit trouvé' })
+  @Get(':id')
+  async getOne(@Param('id') id: string) {
+    const product = await this.service.findOneFull(id);
+    return { success: true as const, message: 'OK', data: product };
   }
 }

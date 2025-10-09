@@ -62,7 +62,8 @@ export default function Navbar() {
         try {
           const decryptedUserData = await decryptData(encryptedUser)
           const userData = JSON.parse(decryptedUserData)
-          setAvatarUrl(userData.user?.avatar || "/Placeholder.png?height=32&width=32")
+          // Fixed: Access avatar directly (no .user nesting)
+          setAvatarUrl(userData.avatar || "/Placeholder.png?height=32&width=32")
         } catch (error) {
           console.error("Error decrypting user data:", error)
           setAvatarUrl("/Placeholder.png?height=32&width=32")
@@ -401,12 +402,6 @@ export default function Navbar() {
                         <Link href="/admin/users" className="flex items-center space-x-2 cursor-pointer">
                           <Users className="h-4 w-4" />
                           <span>Gérer les utilisateurs</span>
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href="/admin/messages" className="flex items-center space-x-2 cursor-pointer">
-                          <MessageSquare className="h-4 w-4" />
-                          <span>Messages</span>
                         </Link>
                       </DropdownMenuItem>
                     </>

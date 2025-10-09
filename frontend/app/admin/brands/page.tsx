@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Edit, Tag, Power, Loader2, CheckCircle, XCircle } from "lucide-react"
+import { Search, Edit, Power, Loader2, CheckCircle, XCircle, Tag } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import AddBrandDialog from "@/components/admin/add-brand-dialog"
 import EditBrandDialog from "@/components/admin/edit-brand-dialog"
@@ -15,45 +15,25 @@ interface Brand {
   id: string
   name: string
   slug: string
+  logo: string
   description: string
-  logoUrl: string
-  bannerUrl: string
-  website: string
-  country: string
-  founded: number
   productCount: number
-  isFeatured: boolean
   isActive: boolean
+  isFeatured: boolean
   createdAt: string
   updatedAt: string
 }
 
 interface BrandResponseDTO {
   success: boolean
-  brands: Brand[]
-  pagination: {
-    page: number
-    size: number
-    totalElements: number
+  message: string
+  data: {
+    items: Brand[]
+    total: number
+    limit: number
+    offset: number
     totalPages: number
   }
-  metadata: {
-    totalCount: number
-    activeCount: number
-    inactiveCount: number
-    featuredCount: number
-  }
-}
-
-interface BrandVDTO {
-  name: string
-  slug: string
-  description: string
-  logo: string
-  website: string
-  sorteOrder: number
-  isActive: boolean
-  isFeatured: boolean
 }
 
 export default function BrandsPage() {
@@ -65,22 +45,12 @@ export default function BrandsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null)
   const [loadingBrands, setLoadingBrands] = useState<Set<string>>(new Set())
-  const [formData, setFormData] = useState<BrandVDTO>({
-    name: "",
-    slug: "",
-    description: "",
-    logo: "",
-    website: "",
-    sorteOrder: 0,
-    isActive: true,
-    isFeatured: false,
-  })
   const url = process.env.NEXT_PUBLIC_API_URL
 
   const fetchBrands = async () => {
     try {
       setLoading(true)
-      const response = await fetch("${url}/admin/brands?includeProducts=false&includeCount=true", {
+      const response = await fetch(`${url}/admin/brands?limit=1000&offset=0`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -93,7 +63,9 @@ export default function BrandsPage() {
       }
       const data: BrandResponseDTO = await response.json()
       if (data.success) {
-        setBrands(data.brands)
+        setBrands(data.data.items)
+      } else {
+        throw new Error(data.message || "Failed to fetch brands")
       }
     } catch (error) {
       toast({
@@ -116,70 +88,15 @@ export default function BrandsPage() {
       brand.description.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
-  const handleEditBrand = async () => {
-    if (!selectedBrand || !formData.name.trim() || !formData.slug.trim()) {
-      toast({
-        title: "Error",
-        description: "Brand name and slug are required",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      const response = await fetch(`${url}/admin/brands/${selectedBrand.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-        },
-        body: JSON.stringify(formData),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || "Failed to update brand")
-      }
-
-      // Refresh the brands list
-      await fetchBrands()
-
-      // Reset form
-      setFormData({
-        name: "",
-        slug: "",
-        description: "",
-        logo: "",
-        website: "",
-        sorteOrder: 0,
-        isActive: true,
-        isFeatured: false,
-      })
-      setIsEditDialogOpen(false)
-      setSelectedBrand(null)
-
-      toast({
-        title: "Success",
-        description: "Brand updated successfully",
-      })
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update brand",
-        variant: "destructive",
-      })
-    }
-  }
-
   const handleToggleStatus = async (brandId: string, currentStatus: boolean) => {
     setLoadingBrands((prev) => new Set(prev).add(brandId))
 
     try {
       const endpoint = currentStatus
-        ? `${url}/admin/brands/${brandId}/deactivate`
+        ? `${url}/admin/brands/${brandId}/desactivate`
         : `${url}/admin/brands/${brandId}/activate`
       const response = await fetch(endpoint, {
-        method: "PUT",
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           authorization: `Bearer ${localStorage.getItem("auth_token")}`,
@@ -190,12 +107,17 @@ export default function BrandsPage() {
         throw new Error("Failed to update brand status")
       }
 
+      const resData = await response.json()
+      if (!resData.success) {
+        throw new Error(resData.message || "Failed to update brand status")
+      }
+
       // Update local state
       setBrands(brands.map((brand) => (brand.id === brandId ? { ...brand, isActive: !currentStatus } : brand)))
 
       toast({
         title: "Success",
-        description: currentStatus ? "Brand deactivated successfully" : "Brand activated successfully",
+        description: resData.message || (currentStatus ? "Brand deactivated successfully" : "Brand activated successfully"),
       })
     } catch (error) {
       toast({
@@ -227,9 +149,9 @@ export default function BrandsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 -mt-20 pt-20 sm:pt-20 mb-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between -mt-12 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Brands Management</h1>
           <p className="text-gray-600 dark:text-gray-400">Manage your product brands and their status</p>
@@ -303,7 +225,6 @@ export default function BrandsPage() {
                 <TableRow>
                   <TableHead>Brand</TableHead>
                   <TableHead>Description</TableHead>
-                  <TableHead>Website</TableHead>
                   <TableHead>Products</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
@@ -316,7 +237,7 @@ export default function BrandsPage() {
                     <TableCell>
                       <div className="flex items-center space-x-3">
                         <img
-                          src={brand.logoUrl || "/Placeholder.png"}
+                          src={brand.logo || "/Placeholder.png"}
                           alt={brand.name}
                           className="w-8 h-8 rounded-full object-cover"
                         />
@@ -327,18 +248,6 @@ export default function BrandsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="max-w-xs truncate">{brand.description}</div>
-                    </TableCell>
-                    <TableCell>
-                      {brand.website && (
-                        <a
-                          href={brand.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[#01A0EA] hover:underline"
-                        >
-                          Visit
-                        </a>
-                      )}
                     </TableCell>
                     <TableCell>{brand.productCount}</TableCell>
                     <TableCell>
@@ -401,8 +310,6 @@ export default function BrandsPage() {
         onOpenChange={setIsEditDialogOpen}
         brand={selectedBrand}
         onBrandUpdated={fetchBrands}
-        formData={formData}
-        setFormData={setFormData}
       />
     </div>
   )

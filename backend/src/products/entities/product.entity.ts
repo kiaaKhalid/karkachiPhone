@@ -138,10 +138,10 @@ export class Product {
   accessories: Product[];
 
   // Relations pour les images et specs
-  @OneToMany(() => ProductImage, (image) => image.product, { cascade: true })
+  @OneToMany(() => ProductImage, (image) => image.product, { cascade: false })
   images: ProductImage[];
 
-  @OneToMany(() => ProductSpec, (spec) => spec.product, { cascade: true })
+  @OneToMany(() => ProductSpec, (spec) => spec.product, { cascade: false })
   specs: ProductSpec[];
 
   @CreateDateColumn()

@@ -23,50 +23,97 @@ import Image from "next/image"
 import EditProductPopup from "@/components/admin/edit-product-popup"
 
 interface AllProduct {
-  id: number
+  id: string
   name: string
   description: string
-  price: number
-  rating: number
-  reviewCount: number
-  brand: string
-  imageUrl: string
+  price: string
+  image: string
+  stock: number
+  rating: string
   isActive: boolean
-  stock: number | null // Allow null to match backend
+  categoryId: string
+  brandId: string
+  createdAt: string
+  brandName: string
+  brand?: string
+}
+
+interface Brand {
+  id: string
+  name: string
 }
 
 interface PageResponse<T> {
-  content: T[]
-  totalElements: number
-  totalPages: number
-  size: number
-  number: number
-  first: boolean
-  last: boolean
+  items: T[]
+  total: number
+  limit: number
+  offset: number
 }
 
 export default function AdminProducts() {
   const [products, setProducts] = useState<AllProduct[]>([])
+  const [brands, setBrands] = useState<Brand[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
-  const [totalPages, setTotalPages] = useState(0)
   const [totalElements, setTotalElements] = useState(0)
   const [pageSize] = useState(25)
   const [searchTerm, setSearchTerm] = useState("")
   const [brandFilter, setBrandFilter] = useState("all")
   const [sortBy, setSortBy] = useState("newest")
-  const [toggleLoading, setToggleLoading] = useState<number | null>(null)
+  const [toggleLoading, setToggleLoading] = useState<string | null>(null)
+  const [brandsLoading, setBrandsLoading] = useState(true)
   const { toast } = useToast()
   const [editPopupOpen, setEditPopupOpen] = useState(false)
-  const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
+  const url = process.env.NEXT_PUBLIC_API_URL
+
+  const fetchBrands = async () => {
+    try {
+      setBrandsLoading(true)
+      const response = await fetch(`${url}/admin/brands?limit=1000&offset=0`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch brands")
+      }
+
+      const data = await response.json()
+      setBrands(data.data?.items || [])
+    } catch (err) {
+      console.error("Failed to fetch brands:", err)
+    } finally {
+      setBrandsLoading(false)
+    }
+  }
 
   const fetchProducts = async (page = 0, size = 25) => {
     try {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/products/all?page=${page}&size=${size}`, {
+      let queryParams = new URLSearchParams({
+        limit: size.toString(),
+        offset: (page * size).toString(),
+      })
+
+      if (searchTerm) {
+        queryParams.append("q", searchTerm)
+      }
+
+      if (brandFilter !== "all") {
+        const selectedBrand = brands.find(b => b.name.toLowerCase() === brandFilter.toLowerCase())
+        if (selectedBrand) {
+          queryParams.append("brandId", selectedBrand.id)
+        }
+      }
+
+      const response = await fetch(`${url}/admin/products?${queryParams.toString()}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -78,12 +125,19 @@ export default function AdminProducts() {
         throw new Error("Failed to fetch products")
       }
 
-      const data: PageResponse<AllProduct> = await response.json()
+      const data: { success: boolean; message?: string; data: PageResponse<AllProduct> } = await response.json()
+      if (!data.success) {
+        throw new Error(data.message || "Failed to fetch products")
+      }
 
-      setProducts(data.content)
-      setTotalPages(data.totalPages)
-      setTotalElements(data.totalElements)
-      setCurrentPage(data.number)
+      // Use brandName from API response
+      const productsWithBrand = data.data.items.map(product => ({
+        ...product,
+        brand: product.brandName || "Unknown",
+      }))
+
+      setProducts(productsWithBrand)
+      setTotalElements(data.data.total)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch products")
       toast({
@@ -97,64 +151,61 @@ export default function AdminProducts() {
   }
 
   useEffect(() => {
-    fetchProducts(currentPage, pageSize)
-  }, [currentPage, pageSize])
+    fetchBrands()
+  }, [])
 
-  const formatCurrency = (amount: number) => {
+  useEffect(() => {
+    fetchProducts(currentPage, pageSize)
+  }, [currentPage, pageSize, searchTerm, brandFilter])
+
+  const formatCurrency = (amount: string) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
-    }).format(amount)
+      currency: "MAD",
+    }).format(parseFloat(amount))
   }
 
-  const filteredProducts = products.filter((product) => {
-    const matchesSearch =
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.description.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesBrand = brandFilter === "all" || product.brand.toLowerCase() === brandFilter.toLowerCase()
-
-    return matchesSearch && matchesBrand
-  })
+  const filteredProducts = products // Already filtered by API
 
   const sortedProducts = [...filteredProducts].sort((a, b) => {
     switch (sortBy) {
       case "price-high":
-        return b.price - a.price
+        return parseFloat(b.price) - parseFloat(a.price)
       case "price-low":
-        return a.price - b.price
+        return parseFloat(a.price) - parseFloat(b.price)
       case "name-asc":
         return a.name.localeCompare(b.name)
       case "name-desc":
         return b.name.localeCompare(a.name)
       case "rating-high":
-        return b.rating - a.rating
+        return parseFloat(b.rating) - parseFloat(a.rating)
       case "rating-low":
-        return a.rating - b.rating
+        return parseFloat(a.rating) - parseFloat(b.rating)
       default:
-        return 0
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     }
   })
 
   const productStats = {
     total: totalElements,
-    totalValue: products.reduce((sum, product) => sum + product.price, 0),
-    avgRating: products.length > 0 ? products.reduce((sum, product) => sum + product.rating, 0) / products.length : 0,
+    totalValue: products.reduce((sum, product) => sum + parseFloat(product.price), 0),
+    avgRating: products.length > 0 ? products.reduce((sum, product) => sum + parseFloat(product.rating), 0) / products.length : 0,
   }
 
   const handlePageChange = (newPage: number) => {
+    const totalPages = Math.ceil(totalElements / pageSize)
     if (newPage >= 0 && newPage < totalPages) {
       setCurrentPage(newPage)
     }
   }
 
-  const handleToggleProductStatus = async (productId: number, currentStatus: boolean) => {
+  const handleToggleProductStatus = async (productId: string, currentStatus: boolean) => {
     try {
       setToggleLoading(productId)
 
-      const action = currentStatus ? "deactivate" : "activate"
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/products/${productId}/${action}`, {
-        method: "PUT",
+      const action = currentStatus ? "desactive" : "active"
+      const response = await fetch(`${url}/admin/products/${productId}/${action}`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
@@ -162,7 +213,13 @@ export default function AdminProducts() {
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to ${action} product`)
+        const errorData = await response.json()
+        throw new Error(errorData.message || `Failed to ${action} product`)
+      }
+
+      const data = await response.json()
+      if (!data.success) {
+        throw new Error(data.message || `Failed to ${action} product`)
       }
 
       setProducts((prevProducts) =>
@@ -171,7 +228,7 @@ export default function AdminProducts() {
 
       toast({
         title: "Success",
-        description: `Product ${currentStatus ? "deactivated" : "activated"} successfully`,
+        description: data.message || `Product ${currentStatus ? "deactivated" : "activated"} successfully`,
       })
     } catch (error) {
       toast({
@@ -185,13 +242,15 @@ export default function AdminProducts() {
     }
   }
 
-  const handleEditProduct = (productId: number) => {
+  const handleEditProduct = (productId: string) => {
     setSelectedProductId(productId)
     setEditPopupOpen(true)
   }
 
+  const totalPages = Math.ceil(totalElements / pageSize)
+
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 -mt-20 p-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Products</h1>
@@ -206,14 +265,14 @@ export default function AdminProducts() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        <div className="col-span-full">
+        
           <Input
             placeholder="Search products..."
-            className="w-full"
+            className="w-60"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-        </div>
+        
         <div className="flex items-center space-x-2">
           <Label htmlFor="brand">Brand</Label>
           <Select value={brandFilter} onValueChange={setBrandFilter}>
@@ -222,17 +281,11 @@ export default function AdminProducts() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
-              <SelectItem value="apple">Apple</SelectItem>
-              <SelectItem value="samsung">Samsung</SelectItem>
-              <SelectItem value="google">Google</SelectItem>
-              <SelectItem value="huawei">Huawei</SelectItem>
-              <SelectItem value="sony">Sony</SelectItem>
-              <SelectItem value="lg">LG</SelectItem>
-              <SelectItem value="panasonic">Panasonic</SelectItem>
-              <SelectItem value="microsoft">Microsoft</SelectItem>
-              <SelectItem value="dell">Dell</SelectItem>
-              <SelectItem value="hp">HP</SelectItem>
-              <SelectItem value="lenovo">Lenovo</SelectItem>
+              {brands.map((brand) => (
+                <SelectItem key={brand.id} value={brand.name.toLowerCase()}>
+                  {brand.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -316,7 +369,7 @@ export default function AdminProducts() {
                 <TableRow key={product.id}>
                   <TableCell className="font-medium flex items-center gap-2">
                     <Image
-                      src={product.imageUrl && product.imageUrl.trim() !== "" ? product.imageUrl : "/Placeholder.png"}
+                      src={product.image && product.image.trim() !== "" ? product.image : "/Placeholder.png"}
                       alt={product.name || "Product image"}
                       width={40}
                       height={40}
@@ -332,20 +385,18 @@ export default function AdminProducts() {
                     </div>
                   </TableCell>
                   <TableCell>{product.brand}</TableCell>
-                  <TableCell>{formatCurrency(product.price)} MAD</TableCell>
+                  <TableCell>{formatCurrency(product.price)}</TableCell>
                   <TableCell>
                     <span
                       className={`font-medium ${
-                        product.stock == null
-                          ? "text-gray-500"
-                          : product.stock <= 10
-                            ? "text-red-500"
-                            : product.stock <= 50
-                              ? "text-yellow-500"
-                              : "text-green-500"
+                        product.stock <= 10
+                          ? "text-red-500"
+                          : product.stock <= 50
+                            ? "text-yellow-500"
+                            : "text-green-500"
                       }`}
                     >
-                      {product.stock ?? "N/A"}
+                      {product.stock}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -355,11 +406,11 @@ export default function AdminProducts() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      <span>{product.rating.toFixed(1)}</span>
+                      <span>{parseFloat(product.rating).toFixed(1)}</span>
                       <span className="text-yellow-500">★</span>
                     </div>
                   </TableCell>
-                  <TableCell>{product.reviewCount}</TableCell>
+                  <TableCell>0</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -370,7 +421,7 @@ export default function AdminProducts() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => navigator.clipboard.writeText(product.id.toString())}>
+                        <DropdownMenuItem onClick={() => navigator.clipboard.writeText(product.id)}>
                           Copy product ID
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />

@@ -35,9 +35,11 @@ export class AdminProductsService {
       isActive?: boolean;
     },
   ) {
-    const qb = this.products.createQueryBuilder('p');
+    const qb = this.products
+      .createQueryBuilder('p')
+      .leftJoin('p.brand', 'brand'); // jointure pour récupérer le nom de la marque
 
-    // Projection: only necessary fields for admin list
+    // Sélection des champs du produit + brand name
     qb.select([
       'p.id',
       'p.name',
@@ -50,31 +52,51 @@ export class AdminProductsService {
       'p.brandId',
       'p.categoryId',
       'p.createdAt',
+      'brand.name', // ajoute le nom de la marque
     ]);
 
+    // Filtres
     if (filters.q) {
       qb.andWhere('(p.name LIKE :q OR p.description LIKE :q)', {
         q: `%${filters.q}%`,
       });
     }
-    if (filters.brandId)
+    if (filters.brandId) {
       qb.andWhere('p.brandId = :brandId', { brandId: filters.brandId });
-    if (filters.categoryId)
+    }
+    if (filters.categoryId) {
       qb.andWhere('p.categoryId = :categoryId', {
         categoryId: filters.categoryId,
       });
-    if (typeof filters.isActive === 'boolean')
+    }
+    if (typeof filters.isActive === 'boolean') {
       qb.andWhere('p.isActive = :isActive', { isActive: filters.isActive });
+    }
 
     qb.orderBy('p.createdAt', 'DESC');
 
+    // Pagination
     const [items, total] = await qb
       .take(Math.max(1, limit))
       .skip(Math.max(0, offset))
       .getManyAndCount();
 
+    // Réponse finale avec brandName
     return {
-      items,
+      items: items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        price: item.price,
+        stock: item.stock,
+        rating: item.rating,
+        image: item.image,
+        isActive: item.isActive,
+        brandId: item.brandId,
+        brandName: item.brand?.name, // ici on récupère le nom de la marque
+        categoryId: item.categoryId,
+        createdAt: item.createdAt,
+      })),
       total,
       limit: Math.max(1, limit),
       offset: Math.max(0, offset),
@@ -97,44 +119,50 @@ export class AdminProductsService {
     await qr.startTransaction();
 
     try {
-      // ensure brand and category exist
+      // Vérifier existence du brand et category
       const brand = await qr.manager.findOne(Brand, {
         where: { id: dto.brandId },
       });
       if (!brand) throw new NotFoundException('Brand not found');
+
       const category = await qr.manager.findOne(Category, {
         where: { id: dto.categoryId },
       });
       if (!category) throw new NotFoundException('Category not found');
 
-      // 1) Save the product first (without relying on cascading children)
+      // 1️⃣ Créer le produit principal
       const product = qr.manager.create(Product, {
         ...dto,
         flashStartsAt: dto.flashStartsAt ? new Date(dto.flashStartsAt) : null,
         flashEndsAt: dto.flashEndsAt ? new Date(dto.flashEndsAt) : null,
       });
-      const saved = await qr.manager.save(Product, product);
 
-      // 2) Insert images explicitly with productId
-      if (dto.images && dto.images.length > 0) {
-        const images = dto.images.map((i) =>
-          qr.manager.create(ProductImage, { url: i.url, productId: saved.id }),
+      const savedProduct = await qr.manager.save(Product, product);
+
+      // 2️⃣ Créer les images associées (si fournies)
+      if (dto.images?.length) {
+        const images = dto.images.map((img) =>
+          qr.manager.create(ProductImage, {
+            url: img.url,
+            productId: savedProduct.id,
+          }),
         );
         await qr.manager.save(ProductImage, images);
       }
 
-      // 3) Insert specs explicitly with productId
-      if (dto.specs && dto.specs.length > 0) {
-        const specs = dto.specs.map((s) =>
+      // 3️⃣ Créer les spécifications associées (si fournies)
+      if (dto.specs?.length) {
+        const specs = dto.specs.map((spec) =>
           qr.manager.create(ProductSpec, {
-            key: s.key,
-            value: s.value,
-            productId: saved.id,
+            key: spec.key,
+            value: spec.value,
+            productId: savedProduct.id,
           }),
         );
         await qr.manager.save(ProductSpec, specs);
       }
 
+      // 4️⃣ Incrémenter les compteurs
       await qr.manager.increment(Brand, { id: dto.brandId }, 'productCount', 1);
       await qr.manager.increment(
         Category,
@@ -143,12 +171,20 @@ export class AdminProductsService {
         1,
       );
 
+      // 5️⃣ Commit final
       await qr.commitTransaction();
 
-      this.logger.log(`Product created: ${saved.id} by admin`);
-      return saved;
-    } catch (e) {
+      this.logger.log(`✅ Product created: ${savedProduct.id}`);
+      return savedProduct;
+    } catch (e: unknown) {
       await qr.rollbackTransaction();
+
+      if (e instanceof Error) {
+        this.logger.error(`❌ Product creation failed: ${e.message}`);
+      } else {
+        this.logger.error('❌ Product creation failed: Unknown error');
+      }
+
       throw e;
     } finally {
       await qr.release();

@@ -17,14 +17,11 @@ import {
 import { User, Shield } from "lucide-react"
 
 interface UserUpdate {
-  id: number
+  id: string
   name: string
   email: string
-  imageUrl?: string
-  phone?: string
   role: string
   isActive: boolean
-  authProvider?: string
   password?: string
 }
 
@@ -37,14 +34,11 @@ interface EditUserPopupProps {
 
 export default function EditUserPopup({ isOpen, onClose, user, onUserUpdated }: EditUserPopupProps) {
   const [formData, setFormData] = useState<UserUpdate>({
-    id: 0,
+    id: "",
     name: "",
     email: "",
-    imageUrl: "",
-    phone: "",
     role: "USER",
     isActive: true,
-    authProvider: "",
     password: "",
   })
   const [loading, setLoading] = useState(false)
@@ -55,12 +49,9 @@ export default function EditUserPopup({ isOpen, onClose, user, onUserUpdated }: 
         id: user.id,
         name: user.name,
         email: user.email,
-        imageUrl: user.imageUrl || "",
-        phone: user.phone || "",
         role: user.role,
         isActive: user.isActive,
-        authProvider: user.authProvider || "",
-        password: "", // Don't populate password for security
+        password: "",
       })
     }
   }, [user])
@@ -82,13 +73,16 @@ export default function EditUserPopup({ isOpen, onClose, user, onUserUpdated }: 
         throw new Error("No authentication token found")
       }
 
-      // Prepare update data (exclude password if empty)
-      const updateData = {
-        ...formData,
+      // Prepare update data (partial, exclude password if empty)
+      const updateData: any = {
+        ...(formData.name && { name: formData.name }),
+        ...(formData.email && { email: formData.email }),
+        ...(formData.role && { role: formData.role }),
+        ...(typeof formData.isActive !== 'undefined' && { isActive: formData.isActive }),
         ...(formData.password && { password: formData.password }),
       }
 
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/users/${formData.id}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/super-admin/users/${formData.id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -101,7 +95,8 @@ export default function EditUserPopup({ isOpen, onClose, user, onUserUpdated }: 
         throw new Error(`Failed to update user: ${response.status}`)
       }
 
-      const updatedUser: UserUpdate = await response.json()
+      const result = await response.json()
+      const updatedUser: UserUpdate = result.data
 
       toast({
         title: "Success ✅",
@@ -149,28 +144,6 @@ export default function EditUserPopup({ isOpen, onClose, user, onUserUpdated }: 
               placeholder="Enter email address"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="rounded-xl border-visible"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-high-contrast mb-2 block">Phone</label>
-            <Input
-              type="tel"
-              placeholder="Enter phone number"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="rounded-xl border-visible"
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-high-contrast mb-2 block">Profile Image URL</label>
-            <Input
-              type="url"
-              placeholder="Enter image URL"
-              value={formData.imageUrl}
-              onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
               className="rounded-xl border-visible"
             />
           </div>

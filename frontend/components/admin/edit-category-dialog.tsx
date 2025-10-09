@@ -15,7 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "lucide-react"
 
@@ -23,12 +22,14 @@ interface Category {
   id: string
   name: string
   slug: string
+  image: string | null
   description: string
-  imageUrl: string | null
-  parentId: string | null
-  level: number
   isActive: boolean
-  subcategories: Category[]
+  sortOrder: number
+  isRebone: boolean
+  productCount: number
+  createdAt: string
+  updatedAt: string
 }
 
 interface EditCategoryDialogProps {
@@ -36,7 +37,6 @@ interface EditCategoryDialogProps {
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
   category: Category | null
-  categories: Category[]
 }
 
 export default function EditCategoryDialog({
@@ -44,7 +44,6 @@ export default function EditCategoryDialog({
   onOpenChange,
   onSuccess,
   category,
-  categories,
 }: EditCategoryDialogProps) {
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
@@ -52,11 +51,12 @@ export default function EditCategoryDialog({
     name: "",
     slug: "",
     description: "",
-    imageUrl: "",
-    parentId: "",
-    level: 0,
+    image: "",
     isActive: true,
+    sortOrder: 0,
+    isRebone: false,
   })
+  const url = process.env.NEXT_PUBLIC_API_URL
 
   useEffect(() => {
     if (category && isOpen) {
@@ -64,10 +64,10 @@ export default function EditCategoryDialog({
         name: category.name,
         slug: category.slug,
         description: category.description,
-        imageUrl: category.imageUrl || "",
-        parentId: category.parentId || "",
-        level: category.level,
+        image: category.image || "",
         isActive: category.isActive,
+        sortOrder: category.sortOrder,
+        isRebone: category.isRebone,
       })
     }
   }, [category, isOpen])
@@ -87,25 +87,25 @@ export default function EditCategoryDialog({
     setIsLoading(true)
 
     try {
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/categories/${category.id}`, {
+      const response = await fetch(`${url}/admin/categories/${category.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
         },
         body: JSON.stringify({
-          id: category.id,
           name: formData.name,
           slug: formData.slug,
-          description: formData.description,
-          imageUrl: formData.imageUrl || null,
-          parentId: formData.parentId || null,
-          level: formData.level,
+          description: formData.description || undefined,
+          image: formData.image || undefined,
           isActive: formData.isActive,
+          sortOrder: formData.sortOrder,
+          isRebone: formData.isRebone,
         }),
       })
 
       if (response.ok) {
+        const resData = await response.json()
         toast({
           title: "Success",
           description: "Category updated successfully",
@@ -141,12 +141,6 @@ export default function EditCategoryDialog({
       : ""
 
     setFormData((prev) => ({ ...prev, name, slug }))
-  }
-
-  const handleParentChange = (parentId: string) => {
-    const parent = categories.find((cat) => cat.id === parentId)
-    const level = parent ? parent.level + 1 : 0
-    setFormData((prev) => ({ ...prev, parentId, level }))
   }
 
   return (
@@ -205,22 +199,22 @@ export default function EditCategoryDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="imageUrl" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <Label htmlFor="image" className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Image URL
             </Label>
             <div className="flex gap-2">
               <Input
-                id="imageUrl"
-                value={formData.imageUrl}
-                onChange={(e) => setFormData((prev) => ({ ...prev, imageUrl: e.target.value }))}
+                id="image"
+                value={formData.image}
+                onChange={(e) => setFormData((prev) => ({ ...prev, image: e.target.value }))}
                 placeholder="https://example.com/image.jpg"
                 className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
               />
             </div>
-            {formData.imageUrl && (
+            {formData.image && (
               <div className="mt-2">
                 <img
-                  src={formData.imageUrl || "/Placeholder.png"}
+                  src={formData.image || "/Placeholder.png"}
                   alt="Preview"
                   className="w-16 h-16 object-cover rounded-lg border"
                   onError={(e) => {
@@ -231,25 +225,20 @@ export default function EditCategoryDialog({
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="parentId" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Parent Category
-            </Label>
-            <Select value={formData.parentId} onValueChange={handleParentChange}>
-              <SelectTrigger className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600">
-                <SelectValue placeholder="Select parent category (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No Parent (Root Category)</SelectItem>
-                {categories
-                  .filter((cat) => cat.level === 0 && cat.id !== category?.id)
-                  .map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="sortOrder" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Sort Order
+              </Label>
+              <Input
+                id="sortOrder"
+                type="number"
+                value={formData.sortOrder}
+                onChange={(e) => setFormData((prev) => ({ ...prev, sortOrder: parseInt(e.target.value) || 0 }))}
+                placeholder="0"
+                className="bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+              />
+            </div>
           </div>
 
           <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
@@ -268,34 +257,51 @@ export default function EditCategoryDialog({
               disabled={isLoading}
             />
           </div>
-        </form>
 
-        <DialogFooter className="flex gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isLoading}
-            className="flex-1"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            onClick={handleSubmit}
-            disabled={isLoading || !formData.name.trim() || !formData.slug.trim()}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Updating...
-              </>
-            ) : (
-              "Update Category"
-            )}
-          </Button>
-        </DialogFooter>
+          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <div className="space-y-1">
+              <Label htmlFor="isRebone" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Rebone Category
+              </Label>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Enable rebone features for this category
+              </p>
+            </div>
+            <Switch
+              id="isRebone"
+              checked={formData.isRebone}
+              onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, isRebone: checked }))}
+              disabled={isLoading}
+            />
+          </div>
+
+          {/* Move DialogFooter INSIDE the form */}
+          <DialogFooter className="flex gap-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isLoading}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isLoading || !formData.name.trim() || !formData.slug.trim()}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Update Category"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

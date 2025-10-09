@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Edit, Search, Filter, Power, Loader2, ChevronRight, ChevronDown, ImageIcon } from "lucide-react"
+import { Plus, Edit, Search, Filter, Power, Loader2, ImageIcon } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
@@ -20,14 +20,11 @@ interface Category {
   name: string
   slug: string
   description: string
-  imageUrl: string | null
-  icon: string | null
-  parentId: string | null
-  level: number
-  position: number
-  productCount: number
+  image: string | null
   isActive: boolean
-  subcategories: Category[]
+  sortOrder: number
+  isRebone: boolean
+  productCount: number
   createdAt: string
   updatedAt: string
 }
@@ -44,7 +41,7 @@ export default function ManageCategories() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({})
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
+  const url = process.env.NEXT_PUBLIC_API_URL
 
   useEffect(() => {
     if (user && user.role !== "admin" && user.role !== "super_admin") {
@@ -57,7 +54,7 @@ export default function ManageCategories() {
   const loadCategories = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/categories", {
+      const response = await fetch(`${url}/admin/categories?page=1&limit=1000`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -67,7 +64,7 @@ export default function ManageCategories() {
 
       if (response.ok) {
         const data = await response.json()
-        setCategories(data.categories || [])
+        setCategories(data.items || [])
       } else {
         toast({
           title: "Error",
@@ -92,11 +89,11 @@ export default function ManageCategories() {
 
     try {
       const endpoint = currentStatus
-        ? `https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/categories/${id}/deactivate`
-        : `https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/categories/${id}/activate`
+        ? `${url}/admin/categories/${id}/deactivate`
+        : `${url}/admin/categories/${id}/activate`
 
       const response = await fetch(endpoint, {
-        method: "PUT",
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
@@ -133,121 +130,19 @@ export default function ManageCategories() {
     setIsEditDialogOpen(true)
   }
 
-  const toggleCategoryExpansion = (categoryId: string) => {
-    setExpandedCategories((prev) => {
-      const newSet = new Set(prev)
-      if (newSet.has(categoryId)) {
-        newSet.delete(categoryId)
-      } else {
-        newSet.add(categoryId)
-      }
-      return newSet
-    })
-  }
-
-  const renderCategoryRow = (category: Category, level = 0) => {
-    const hasSubcategories = category.subcategories && category.subcategories.length > 0
-    const isExpanded = expandedCategories.has(category.id)
-    const isLoading = loadingStates[category.id]
-
-    return (
-      <React.Fragment key={category.id}>
-        <TableRow className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50">
-          <TableCell>
-            <div className="flex items-center gap-3" style={{ paddingLeft: `${level * 20}px` }}>
-              {hasSubcategories && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => toggleCategoryExpansion(category.id)}
-                  className="p-1 h-6 w-6"
-                >
-                  {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                </Button>
-              )}
-              <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
-                {category.imageUrl ? (
-                  <img
-                    src={category.imageUrl || "/Placeholder.png"}
-                    alt={category.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <ImageIcon className="h-5 w-5 text-gray-400" />
-                )}
-              </div>
-              <div>
-                <p className="font-medium text-high-contrast">{category.name}</p>
-                <p className="text-sm text-medium-contrast">/{category.slug}</p>
-                {level > 0 && (
-                  <Badge variant="outline" className="text-xs mt-1">
-                    Level {level + 1}
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </TableCell>
-          <TableCell>
-            <p className="text-medium-contrast max-w-xs truncate">{category.description}</p>
-          </TableCell>
-          <TableCell>
-            <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-              {category.productCount} products
-            </Badge>
-          </TableCell>
-          <TableCell>
-            <div className="flex items-center gap-2">
-              <div
-                className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                  category.isActive
-                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                    : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
-                }`}
-              >
-                <div className={`w-2 h-2 rounded-full ${category.isActive ? "bg-green-500" : "bg-gray-400"}`} />
-                {category.isActive ? "Active" : "Inactive"}
-              </div>
-            </div>
-          </TableCell>
-          <TableCell>
-            <p className="text-sm text-medium-contrast">{category.updatedAt}</p>
-          </TableCell>
-          <TableCell>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleEdit(category)}
-                className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-              >
-                <Edit className="h-4 w-4 text-blue-600" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => toggleStatus(category.id, category.isActive)}
-                disabled={isLoading}
-                className={`p-2 ${
-                  category.isActive
-                    ? "hover:bg-orange-50 dark:hover:bg-orange-900/20"
-                    : "hover:bg-green-50 dark:hover:bg-green-900/20"
-                }`}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Power className={`h-4 w-4 ${category.isActive ? "text-orange-600" : "text-green-600"}`} />
-                )}
-              </Button>
-            </div>
-          </TableCell>
-        </TableRow>
-        {hasSubcategories &&
-          isExpanded &&
-          category.subcategories.map((subcategory) => renderCategoryRow(subcategory, level + 1))}
-      </React.Fragment>
-    )
-  }
+  const filteredCategories = categories.filter((category) => {
+    if (filterStatus !== "all") {
+      if (filterStatus === "active" && !category.isActive) return false
+      if (filterStatus === "inactive" && category.isActive) return false
+    }
+    if (searchTerm) {
+      return (
+        category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        category.description.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    }
+    return true
+  })
 
   if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
     return (
@@ -261,8 +156,8 @@ export default function ManageCategories() {
   }
 
   return (
-    <div className="min-h-screen pt-16 sm:pt-20 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen pt-16 -mt-20 sm:pt-20 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <div className="container mx-auto px-4 py-8 -mt-20">
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gradient-blue mb-2">Manage Categories</h1>
           <p className="text-lg text-high-contrast">
@@ -323,7 +218,85 @@ export default function ManageCategories() {
                       <TableHead className="text-high-contrast">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>{categories.map((category) => renderCategoryRow(category))}</TableBody>
+                  <TableBody>
+                    {filteredCategories.map((category) => (
+                      <TableRow key={category.id} className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
+                              {category.image ? (
+                                <img
+                                  src={category.image}
+                                  alt={category.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <ImageIcon className="h-5 w-5 text-gray-400" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-medium text-high-contrast">{category.name}</p>
+                              <p className="text-sm text-medium-contrast">/{category.slug}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <p className="text-medium-contrast max-w-xs truncate">{category.description}</p>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            {category.productCount} products
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                                category.isActive
+                                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                  : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
+                              }`}
+                            >
+                              <div className={`w-2 h-2 rounded-full ${category.isActive ? "bg-green-500" : "bg-gray-400"}`} />
+                              {category.isActive ? "Active" : "Inactive"}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <p className="text-sm text-medium-contrast">{new Date(category.updatedAt).toLocaleDateString()}</p>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(category)}
+                              className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                            >
+                              <Edit className="h-4 w-4 text-blue-600" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleStatus(category.id, category.isActive)}
+                              disabled={loadingStates[category.id]}
+                              className={`p-2 ${
+                                category.isActive
+                                  ? "hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                                  : "hover:bg-green-50 dark:hover:bg-green-900/20"
+                              }`}
+                            >
+                              {loadingStates[category.id] ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Power className={`h-4 w-4 ${category.isActive ? "text-orange-600" : "text-green-600"}`} />
+                              )}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
                 </Table>
               </div>
             )}
@@ -334,7 +307,6 @@ export default function ManageCategories() {
           isOpen={isAddDialogOpen}
           onOpenChange={setIsAddDialogOpen}
           onSuccess={loadCategories}
-          categories={categories}
         />
 
         <EditCategoryDialog
@@ -342,7 +314,6 @@ export default function ManageCategories() {
           onOpenChange={setIsEditDialogOpen}
           onSuccess={loadCategories}
           category={editingCategory}
-          categories={categories}
         />
       </div>
     </div>

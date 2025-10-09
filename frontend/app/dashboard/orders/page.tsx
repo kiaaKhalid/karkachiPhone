@@ -28,119 +28,18 @@ import { useToast } from "@/hooks/use-toast"
 import { generateTrackingQRCode } from "@/lib/tracking"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
-interface OrderItem {
-  id: string
-  name: string
-  price: number
-  quantity: number
-  image: string
-  imei?: string
-  requiresIMEI?: boolean
-}
-
 interface Order {
   id: string
-  orderNumber: string
-  date: string
-  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled"
   total: number
-  items: OrderItem[]
-  shippingAddress: {
-    name: string
-    address: string
-    city: string
-    postalCode: string
-    phone: string
-  }
-  trackingNumber?: string
-  estimatedDelivery?: string
-  paymentMethod: string
+  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled"
+  userId: string
+  createdAt: string
+  updatedAt: string
+  version: number
+  orderNumber?: string
+  date?: string
+  paymentMethod?: string
 }
-
-// Mock orders data
-const mockOrders: Order[] = [
-  {
-    id: "1",
-    orderNumber: "KP-2024-001",
-    date: "2024-01-15",
-    status: "delivered",
-    total: 12999,
-    items: [
-      {
-        id: "samsung-galaxy-s24-ultra",
-        name: "Samsung Galaxy S24 Ultra",
-        price: 12999,
-        quantity: 1,
-        image: "/images/samsung-galaxy-s24-ultra.png",
-        imei: "356789012345678",
-        requiresIMEI: true,
-      },
-    ],
-    shippingAddress: {
-      name: "Ahmed Benali",
-      address: "123 Rue Mohammed V",
-      city: "Casablanca",
-      postalCode: "20000",
-      phone: "+212 6 12 34 56 78",
-    },
-    trackingNumber: "TN123456789MA",
-    estimatedDelivery: "2024-01-18",
-    paymentMethod: "Carte bancaire",
-  },
-  {
-    id: "2",
-    orderNumber: "KP-2024-002",
-    date: "2024-01-20",
-    status: "processing",
-    total: 13999,
-    items: [
-      {
-        id: "iphone-15-pro-max",
-        name: "iPhone 15 Pro Max",
-        price: 13999,
-        quantity: 1,
-        image: "/images/iphone-15-pro-max.png",
-        imei: "358912345678901",
-        requiresIMEI: true,
-      },
-    ],
-    shippingAddress: {
-      name: "Fatima Zahra",
-      address: "456 Avenue Hassan II",
-      city: "Rabat",
-      postalCode: "10000",
-      phone: "+212 6 87 65 43 21",
-    },
-    trackingNumber: "TN987654321MA",
-    estimatedDelivery: "2024-01-25",
-    paymentMethod: "Paiement à la livraison",
-  },
-  {
-    id: "3",
-    orderNumber: "KP-2024-003",
-    date: "2024-01-22",
-    status: "pending",
-    total: 8999,
-    items: [
-      {
-        id: "google-pixel-8-pro",
-        name: "Google Pixel 8 Pro",
-        price: 8999,
-        quantity: 1,
-        image: "/images/google-pixel-8-pro.png",
-        requiresIMEI: true,
-      },
-    ],
-    shippingAddress: {
-      name: "Youssef Alami",
-      address: "789 Boulevard Zerktouni",
-      city: "Marrakech",
-      postalCode: "40000",
-      phone: "+212 6 11 22 33 44",
-    },
-    paymentMethod: "Carte bancaire",
-  },
-]
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -151,17 +50,46 @@ export default function OrdersPage() {
   const [showSocialModal, setShowSocialModal] = useState<string | null>(null)
 
   useEffect(() => {
-    // Simulate API call
-    const fetchOrders = async () => {
-      setLoading(true)
-      // Simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      setOrders(mockOrders)
-      setLoading(false)
-    }
-
     fetchOrders()
   }, [])
+
+  const fetchOrders = async () => {
+    setLoading(true)
+    try {
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/person/orders`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch orders')
+      }
+
+      const result = await response.json()
+      if (result.success) {
+        const mappedOrders = result.data.map((order: any) => ({
+          ...order,
+          total: parseFloat(order.total),
+          date: order.createdAt,
+          orderNumber: `KP-${new Date(order.createdAt).getFullYear()}-${order.id.slice(-3).toUpperCase()}`,
+        }))
+        setOrders(mappedOrders)
+      }
+    } catch (error) {
+      console.error('Error fetching orders:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les commandes",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const getStatusColor = (status: Order["status"]) => {
     switch (status) {
@@ -212,10 +140,6 @@ export default function OrdersPage() {
       default:
         return status
     }
-  }
-
-  const shouldShowIMEI = (status: Order["status"]) => {
-    return ["processing", "shipped", "delivered"].includes(status)
   }
 
   const copyToClipboard = (text: string, label: string) => {
@@ -277,7 +201,7 @@ export default function OrdersPage() {
                     <CardTitle className="text-lg font-semibold">Commande #{order.orderNumber}</CardTitle>
                     <CardDescription className="flex items-center gap-2 mt-1">
                       <Calendar className="h-4 w-4" />
-                      Passée le {new Date(order.date).toLocaleDateString("fr-FR")}
+                      Passée le {new Date(order.date!).toLocaleDateString("fr-FR")}
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-3">
@@ -291,7 +215,7 @@ export default function OrdersPage() {
                       </div>
                       <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
                         <CreditCard className="h-3 w-3" />
-                        {order.paymentMethod}
+                        {order.paymentMethod || "Non spécifié"}
                       </div>
                     </div>
                   </div>
@@ -314,8 +238,7 @@ export default function OrdersPage() {
                   <Alert className="mb-6 border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20">
                     <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     <AlertDescription className="text-blue-800 dark:text-blue-200">
-                      Votre commande a été confirmée et est en cours de préparation. L'IMEI sera assigné lors de la
-                      préparation de votre appareil.
+                      Votre commande a été confirmée et est en cours de préparation.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -333,141 +256,16 @@ export default function OrdersPage() {
                   <Alert className="mb-6 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20">
                     <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                     <AlertDescription className="text-green-800 dark:text-green-200">
-                      Votre commande a été livrée avec succès ! Conservez précieusement l'IMEI pour la garantie.
+                      Votre commande a été livrée avec succès !
                     </AlertDescription>
                   </Alert>
                 )}
 
-                {/* Order Items */}
+                {/* Order Items - Simplified */}
                 <div className="space-y-4 mb-6">
                   <h3 className="font-semibold text-gray-900 dark:text-white">Articles commandés</h3>
-                  {order.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
-                    >
-                      <img
-                        src={item.image || "/Placeholder.png"}
-                        alt={item.name}
-                        className="w-16 h-16 object-cover rounded-md"
-                      />
-                      <div className="flex-1">
-                        <h4 className="font-medium text-gray-900 dark:text-white">{item.name}</h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Quantité: {item.quantity} × {item.price.toLocaleString()} MAD
-                        </p>
-
-                        {/* IMEI Section */}
-                        {item.requiresIMEI && (
-                          <div className="mt-3 p-3 bg-white dark:bg-gray-900 rounded-md border">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Shield className="h-4 w-4 text-[#01A0EA]" />
-                              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                IMEI (Numéro de série)
-                              </span>
-                            </div>
-
-                            {!shouldShowIMEI(order.status) ? (
-                              <div className="text-sm text-gray-600 dark:text-gray-400 italic">
-                                L'IMEI sera disponible une fois votre commande confirmée par l'administrateur
-                              </div>
-                            ) : item.imei ? (
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-2 p-2 bg-gray-100 dark:bg-gray-800 rounded font-mono text-sm">
-                                  <span className="flex-1">{item.imei}</span>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => copyToClipboard(item.imei!, "IMEI")}
-                                    className="h-6 w-6 p-0"
-                                  >
-                                    <Copy className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">
-                                  ⚠️ Conservez précieusement ce numéro pour la garantie et le service après-vente
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="text-sm text-gray-600 dark:text-gray-400 italic">
-                                L'IMEI sera assigné lors de la préparation de votre appareil pour l'expédition
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-gray-900 dark:text-white">
-                          {(item.price * item.quantity).toLocaleString()} MAD
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <Separator className="my-6" />
-
-                {/* Order Details Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Shipping Address */}
-                  <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      Adresse de livraison
-                    </h3>
-                    <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                      <div className="font-medium text-gray-900 dark:text-white">{order.shippingAddress.name}</div>
-                      <div>{order.shippingAddress.address}</div>
-                      <div>
-                        {order.shippingAddress.city} {order.shippingAddress.postalCode}
-                      </div>
-                      <div className="flex items-center gap-1 mt-2">
-                        <Phone className="h-3 w-3" />
-                        {order.shippingAddress.phone}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Tracking Information */}
-                  <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                      <Truck className="h-4 w-4" />
-                      Suivi de commande
-                    </h3>
-                    <div className="space-y-3">
-                      {order.trackingNumber && (
-                        <div>
-                          <label className="text-sm text-gray-600 dark:text-gray-400">Numéro de suivi</label>
-                          <div className="flex items-center gap-2 mt-1">
-                            <code className="flex-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-sm font-mono">
-                              {order.trackingNumber}
-                            </code>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => copyToClipboard(order.trackingNumber!, "Numéro de suivi")}
-                              className="h-8 w-8 p-0"
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {order.estimatedDelivery && (
-                        <div>
-                          <label className="text-sm text-gray-600 dark:text-gray-400">Livraison estimée</label>
-                          <div className="text-sm font-medium text-gray-900 dark:text-white mt-1">
-                            {new Date(order.estimatedDelivery).toLocaleDateString("fr-FR", {
-                              weekday: "long",
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                  <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg text-gray-600 dark:text-gray-400">
+                    Détails des articles non disponibles dans cette vue. Contactez le support pour plus d'informations.
                   </div>
                 </div>
 
@@ -476,37 +274,6 @@ export default function OrdersPage() {
                   {order.status === "pending" && (
                     <Button variant="outline" size="sm">
                       Annuler la commande
-                    </Button>
-                  )}
-
-                  {order.trackingNumber && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const deliveryPhone = "+212612345678" // Numéro du livreur
-                        const message = `Bonjour, je souhaite suivre ma commande ${order.orderNumber} avec le numéro de suivi ${order.trackingNumber}`
-                        const whatsappUrl = `https://wa.me/${deliveryPhone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(message)}`
-                        window.open(whatsappUrl, "_blank")
-                      }}
-                      className="flex items-center gap-2 text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
-                    >
-                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488" />
-                      </svg>
-                      Contacter Livreur
-                    </Button>
-                  )}
-
-                  {order.status === "delivered" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowSocialModal(order.id)}
-                      className="flex items-center gap-2"
-                    >
-                      <Star className="h-4 w-4" />
-                      Laisser un avis
                     </Button>
                   )}
 
@@ -522,6 +289,17 @@ export default function OrdersPage() {
                     >
                       <QrCode className="h-4 w-4" />
                       Code QR Livraison
+                    </Button>
+                  )}
+                  {order.status === "delivered" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSocialModal(order.id)}
+                      className="flex items-center gap-2"
+                    >
+                      <Star className="h-4 w-4" />
+                      Laisser un avis
                     </Button>
                   )}
                 </div>
@@ -546,14 +324,13 @@ export default function OrdersPage() {
                 <div className="flex flex-col items-center space-y-4 py-4">
                   <div className="bg-white p-4 rounded-lg border-2 border-gray-200">
                     <img
-                      src={generateTrackingQRCode(order.trackingNumber || order.orderNumber, order.id)}
+                      src={generateTrackingQRCode(order.orderNumber || order.id, order.id)}
                       alt="QR Code de livraison"
                       className="w-48 h-48"
                     />
                   </div>
                   <div className="text-center space-y-2">
                     <p className="text-sm font-medium">Commande: {order.orderNumber}</p>
-                    {order.trackingNumber && <p className="text-xs text-gray-600">Suivi: {order.trackingNumber}</p>}
                     <p className="text-xs text-gray-500">Présentez ce code au livreur pour confirmer la réception</p>
                   </div>
                 </div>
@@ -573,8 +350,8 @@ export default function OrdersPage() {
               const order = orders.find((o) => o.id === showSocialModal)
               if (!order) return null
 
-              const productName = order.items[0]?.name || "votre produit"
-              const reviewText = `Je viens de recevoir mon ${productName} de KasbaPhone ! Excellent service et livraison rapide. Je recommande ! #KasbaPhone #${productName.replace(/\s+/g, "")}`
+              const productName = "mon produit"
+              const reviewText = `Je viens de recevoir ${productName} de KARKACHI PHONE ! Excellent service et livraison rapide. Je recommande ! #KARKACHIPHONE #${productName.replace(/\s+/g, "")}`
 
               return (
                 <div className="space-y-4 py-4">
@@ -610,7 +387,7 @@ export default function OrdersPage() {
                         window.open(instagramUrl, "_blank")
                         toast({
                           title: "Instagram ouvert",
-                          description: "Partagez une photo de votre produit avec #KasbaPhone",
+                          description: "Partagez une photo de votre produit avec #KARKACHIPHONE",
                         })
                       }}
                     >
@@ -632,7 +409,7 @@ export default function OrdersPage() {
                       <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488" />
                       </svg>
-                      Partager sur WhatsApp
+                      Partager sur Twitter
                     </Button>
                   </div>
 
@@ -652,7 +429,7 @@ export default function OrdersPage() {
                       }}
                     >
                       <Star className="h-5 w-5" />
-                      Laisser un avis sur KasbaPhone
+                      Laisser un avis sur KARKACHI PHONE
                     </Button>
                   </div>
 

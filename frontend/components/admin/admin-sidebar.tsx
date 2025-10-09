@@ -23,7 +23,6 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronLeft,
-  Megaphone,
   HelpCircle,
   LogOut,
   X,
@@ -36,23 +35,19 @@ const menuItems = [
     title: "Dashboard",
     icon: LayoutDashboard,
     href: "/admin",
-    badge: null,
   },
   {
     title: "Categories",
     icon: Component,
     href: "/admin/categories",
-    badge: "12",
   },
   {
     title: "Products",
     icon: Package,
     href: "/admin/products",
-    badge: "12",
     submenu: [
       { title: "All Products", href: "/admin/products" },
       { title: "Add Product", href: "/admin/products/add" },
-      { title: "Inventory", href: "/admin/inventory" },
     ],
   },
 
@@ -60,26 +55,20 @@ const menuItems = [
     title: "Brands",
     icon: Tag,
     href: "/admin/brands",
-    badge: null,
 
   },
   {
     title: "Orders",
     icon: ShoppingCart,
     href: "/admin/orders",
-    badge: "5",
     submenu: [
       { title: "All Orders", href: "/admin/orders" },
-      { title: "Pending", href: "/admin/orders/pending" },
-      { title: "Processing", href: "/admin/orders/processing" },
-      { title: "Shipped", href: "/admin/orders/shipped" },
     ],
   },
   {
     title: "Users",
     icon: Users,
     href: "/admin/users",
-    badge: null,
   },
   {
     title: "Analytics",
@@ -88,20 +77,9 @@ const menuItems = [
     badge: null,
   },
   {
-    title: "Marketing",
-    icon: Megaphone,
-    href: "/admin/marketing",
-    badge: null,
-    submenu: [
-      { title: "Promotions", href: "/admin/promotions" },
-      { title: "Coupons", href: "/admin/coupons" },
-    ],
-  },
-  {
     title: "Reviews",
     icon: Star,
     href: "/admin/reviews",
-    badge: "3",
   },
 ]
 
@@ -278,11 +256,6 @@ export default function AdminSidebar({
                             )}
                           >
                             <Icon className="h-5 w-5 stroke-2 transition-all duration-200 group-hover:scale-110" />
-                            {item.badge && (
-                              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-medium transition-all duration-200 group-hover:scale-110">
-                                {item.badge}
-                              </span>
-                            )}
                           </Link>
                         </TooltipTrigger>
                         <TooltipContent side="right">
@@ -308,11 +281,6 @@ export default function AdminSidebar({
                             <div className="flex items-center space-x-3">
                               <item.icon className="w-5 h-5" />
                               <span>{item.title}</span>
-                              {item.badge && (
-                                <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800 rounded-full dark:bg-red-900/50 dark:text-red-300">
-                                  {item.badge}
-                                </span>
-                              )}
                             </div>
                             {expandedItems.includes(item.title) ? (
                               <ChevronDown className="w-4 h-4" />
@@ -355,11 +323,6 @@ export default function AdminSidebar({
                             <item.icon className="w-5 h-5" />
                             <span>{item.title}</span>
                           </div>
-                          {item.badge && (
-                            <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800 rounded-full dark:bg-red-900/50 dark:text-red-300">
-                              {item.badge}
-                            </span>
-                          )}
                         </Link>
                       )}
                     </div>

@@ -115,11 +115,13 @@ export default function WishlistPage() {
 
       // Supprimer chaque élément individuellement
       const deletePromises = wishlistItems.map(item =>
-        fetch(`${url}/person/product/wishlist/${item.id}`, {
+        fetch(`${url}/person/wishlist`, {
           method: "DELETE",
           headers: {
+            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
+          body: JSON.stringify({ productId: item.id }),
         })
       )
 
@@ -144,11 +146,13 @@ export default function WishlistPage() {
     try {
       const token = localStorage.getItem("auth_token")
 
-      const response = await fetch(`${url}/person/product/wishlist/${productId}`, {
+      const response = await fetch(`${url}/person/wishlist`, {
         method: "DELETE",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({ productId }),
       })
 
       if (!response.ok) {

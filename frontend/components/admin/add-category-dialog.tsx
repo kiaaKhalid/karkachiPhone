@@ -15,27 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "lucide-react"
-
-interface Category {
-  id: string
-  name: string
-  slug: string
-  description: string
-  imageUrl: string | null
-  parentId: string | null
-  level: number
-  isActive: boolean
-  subcategories: Category[]
-}
-
-interface CategoryChoix {
-  id: string
-  name: string
-  level: number
-}
 
 interface AddCategoryDialogProps {
   isOpen: boolean
@@ -46,27 +27,26 @@ interface AddCategoryDialogProps {
 export default function AddCategoryDialog({ isOpen, onOpenChange, onSuccess }: AddCategoryDialogProps) {
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
-  const [parentCategories, setParentCategories] = useState<CategoryChoix[]>([])
-  const [loadingCategories, setLoadingCategories] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
     description: "",
-    imageUrl: "",
-    parentId: "",
-    level: 0,
+    image: "",
     isActive: true,
+    sortOrder: 0,
+    isRebone: false,
   })
+  const url = process.env.NEXT_PUBLIC_API_URL
 
   const resetForm = () => {
     setFormData({
       name: "",
       slug: "",
       description: "",
-      imageUrl: "",
-      parentId: "",
-      level: 0,
+      image: "",
       isActive: true,
+      sortOrder: 0,
+      isRebone: false,
     })
   }
 
@@ -80,10 +60,10 @@ export default function AddCategoryDialog({ isOpen, onOpenChange, onSuccess }: A
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.name.trim() || !formData.slug.trim()) {
+    if (!formData.name.trim() || !formData.slug.trim() || !formData.image.trim()) {
       toast({
         title: "Error",
-        description: "Category name and slug are required",
+        description: "Category name, slug, and image are required",
         variant: "destructive",
       })
       return
@@ -92,7 +72,7 @@ export default function AddCategoryDialog({ isOpen, onOpenChange, onSuccess }: A
     setIsLoading(true)
 
     try {
-      const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/categories", {
+      const response = await fetch(`${url}/admin/categories`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -101,11 +81,11 @@ export default function AddCategoryDialog({ isOpen, onOpenChange, onSuccess }: A
         body: JSON.stringify({
           name: formData.name,
           slug: formData.slug,
-          description: formData.description,
-          imageUrl: formData.imageUrl || null,
-          parentId: formData.parentId || null,
-          level: formData.level,
+          image: formData.image,
+          description: formData.description || undefined,
           isActive: formData.isActive,
+          sortOrder: formData.sortOrder,
+          isRebone: formData.isRebone,
         }),
       })
 
@@ -147,55 +127,6 @@ export default function AddCategoryDialog({ isOpen, onOpenChange, onSuccess }: A
 
     setFormData((prev) => ({ ...prev, name, slug }))
   }
-
-  const handleParentChange = (parentId: string) => {
-    const parent = parentCategories.find((cat) => cat.id === parentId)
-    const level = parent ? parent.level + 1 : 0
-    setFormData((prev) => ({ ...prev, parentId, level }))
-  }
-
-  useEffect(() => {
-    const fetchParentCategories = async () => {
-      if (!isOpen) return
-
-      setLoadingCategories(true)
-      console.log("[v0] Fetching parent categories...")
-      try {
-        const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/category/all", {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-          },
-        })
-
-        console.log("[v0] API Response status:", response.status)
-
-        if (response.ok) {
-          const categories = await response.json()
-          console.log("[v0] Fetched categories:", categories)
-          setParentCategories(categories)
-        } else {
-          const errorText = await response.text()
-          console.error("[v0] Failed to fetch categories:", response.status, errorText)
-          toast({
-            title: "Warning",
-            description: "Could not load parent categories",
-            variant: "destructive",
-          })
-        }
-      } catch (error) {
-        console.error("[v0] Error fetching categories:", error)
-        toast({
-          title: "Warning",
-          description: "Could not load parent categories",
-          variant: "destructive",
-        })
-      } finally {
-        setLoadingCategories(false)
-      }
-    }
-
-    fetchParentCategories()
-  }, [isOpen])
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -271,23 +202,24 @@ export default function AddCategoryDialog({ isOpen, onOpenChange, onSuccess }: A
 
           <div className="space-y-3">
             <Label
-              htmlFor="imageUrl"
+              htmlFor="image"
               className="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2"
             >
               <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
-              Image URL
+              Image URL *
             </Label>
             <Input
-              id="imageUrl"
-              value={formData.imageUrl}
-              onChange={(e) => setFormData((prev) => ({ ...prev, imageUrl: e.target.value }))}
+              id="image"
+              value={formData.image}
+              onChange={(e) => setFormData((prev) => ({ ...prev, image: e.target.value }))}
               placeholder="https://example.com/image.jpg"
+              required
               className="bg-white/80 dark:bg-gray-800/80 border-gray-200 dark:border-gray-600 rounded-xl shadow-sm focus:shadow-md transition-all duration-200 focus:ring-2 focus:ring-orange-500/20"
             />
-            {formData.imageUrl && (
+            {formData.image && (
               <div className="mt-3 p-3 bg-white/60 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-600">
                 <img
-                  src={formData.imageUrl || "/Placeholder.png"}
+                  src={formData.image || "/Placeholder.png"}
                   alt="Preview"
                   className="w-20 h-20 object-cover rounded-xl border-2 border-white shadow-lg"
                   onError={(e) => {
@@ -300,30 +232,21 @@ export default function AddCategoryDialog({ isOpen, onOpenChange, onSuccess }: A
 
           <div className="space-y-3">
             <Label
-              htmlFor="parentId"
+              htmlFor="sortOrder"
               className="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2"
             >
               <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
-              Parent Category
+              Sort Order
             </Label>
-            <Select value={formData.parentId} onValueChange={handleParentChange} disabled={loadingCategories}>
-              <SelectTrigger className="bg-white/80 dark:bg-gray-800/80 border-gray-200 dark:border-gray-600 rounded-xl shadow-sm focus:shadow-md transition-all duration-200 focus:ring-2 focus:ring-indigo-500/20">
-                <SelectValue
-                  placeholder={loadingCategories ? "Loading categories..." : "Select parent category (optional)"}
-                />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl border-gray-200 dark:border-gray-600">
-                <SelectItem value="none" className="rounded-lg">
-                  No Parent (Root Category)
-                </SelectItem>
-                {parentCategories.map((category) => (
-                  <SelectItem key={category.id} value={category.id} className="rounded-lg">
-                    {"  ".repeat(category.level)}
-                    {category.name} {category.level > 0 ? `(Level ${category.level})` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              id="sortOrder"
+              type="number"
+              value={formData.sortOrder}
+              onChange={(e) => setFormData((prev) => ({ ...prev, sortOrder: parseInt(e.target.value) || 0 }))}
+              placeholder="0"
+              min={0}
+              className="bg-white/80 dark:bg-gray-800/80 border-gray-200 dark:border-gray-600 rounded-xl shadow-sm focus:shadow-md transition-all duration-200 focus:ring-2 focus:ring-indigo-500/20"
+            />
           </div>
 
           <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-800/50 dark:to-blue-900/20 p-6 rounded-2xl border border-blue-200 dark:border-gray-600">
@@ -349,6 +272,23 @@ export default function AddCategoryDialog({ isOpen, onOpenChange, onSuccess }: A
               />
             </div>
           </div>
+
+          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <div className="space-y-1">
+              <Label htmlFor="isRebone" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Rebone Category
+              </Label>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Enable rebone features for this category
+              </p>
+            </div>
+            <Switch
+              id="isRebone"
+              checked={formData.isRebone}
+              onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, isRebone: checked }))}
+              disabled={isLoading}
+            />
+          </div>
         </form>
 
         <DialogFooter className="flex gap-4 pt-6 border-t border-gray-200 dark:border-gray-700">
@@ -364,7 +304,7 @@ export default function AddCategoryDialog({ isOpen, onOpenChange, onSuccess }: A
           <Button
             type="submit"
             onClick={handleSubmit}
-            disabled={isLoading || !formData.name.trim() || !formData.slug.trim()}
+            disabled={isLoading || !formData.name.trim() || !formData.slug.trim() || !formData.image.trim()}
             className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
           >
             {isLoading ? (

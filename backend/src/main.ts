@@ -9,44 +9,61 @@ import type { RequestHandler } from 'express';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // ✅ CORS strict avec credentials
-  const allowOrigin = (process.env.CORS_ORIGIN || 'http://localhost:3000')
-    .split(',')
-    .map((s: string) => s.trim())
-    .filter(Boolean);
+  // ✅ Enhanced CORS: Dynamic origin validation
+  const frontendOrigins = [
+    process.env.FRONTEND_URL || 'http://localhost:3000',
+    'http://localhost:3001', // For multi-port dev if needed
+  ];
 
   app.enableCors({
-    origin: allowOrigin,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    credentials: true,
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow: boolean) => void,
+    ): void => {
+      // Allow non-browser requests (e.g., mobile apps)
+      if (!origin) return callback(null, true);
+      if (frontendOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      console.warn(`CORS blocked origin: ${origin}`); // Log for debug
+      return callback(new Error('Not allowed by CORS'), false);
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+    credentials: true, // Essential for cookies/tokens
     allowedHeaders: [
       'Content-Type',
       'Authorization',
       'X-Requested-With',
       'Accept',
       'Origin',
+      'X-Forwarded-For',
+      'User-Agent',
     ],
     exposedHeaders: [
       'X-RateLimit-Limit',
       'X-RateLimit-Remaining',
       'X-RateLimit-Reset',
       'Retry-After',
+      'Set-Cookie',
     ],
     preflightContinue: false,
     optionsSuccessStatus: 204,
+    maxAge: 86400, // Cache preflight responses for 24h
   });
 
-  // ✅ Security headers
+  // ✅ Helmet: Relaxed CSP for dev
   const helmetOptions = {
     contentSecurityPolicy:
-      process.env.NODE_ENV === 'production' ? undefined : false,
+      process.env.NODE_ENV === 'production'
+        ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.google.com https://accounts.google.com;"
+        : false, // Disable CSP in dev to avoid blocks
     crossOriginEmbedderPolicy: false,
-  } as const;
+  };
 
   const helmetFactory = helmet as unknown as (opts?: unknown) => RequestHandler;
   app.use(helmetFactory(helmetOptions));
 
-  // ✅ Validation globale pour DTOs
+  // Global validation
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -55,7 +72,7 @@ async function bootstrap() {
     }),
   );
 
-  // ✅ Cookies parsing
+  // Cookie parser
   const cookieSecret = process.env.COOKIE_SECRET || 'change-me-cookie-secret';
   app.use(cookieParser(cookieSecret));
 

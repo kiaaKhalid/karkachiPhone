@@ -97,7 +97,12 @@ export default function AdminUsersPage() {
         throw new Error(`Failed to fetch users: ${response.status}`)
       }
 
-      const data: PageResponse<UserDTO> = await response.json().then(r => r.data)
+      const jsonResponse = await response.json()
+      if (!jsonResponse.success) {
+        throw new Error(jsonResponse.message || "Failed to fetch users")
+      }
+
+      const data: PageResponse<UserDTO> = jsonResponse.data
       setUsers(data.items)
       setTotalPages(data.totalPages)
       setTotalElements(data.total)
@@ -297,11 +302,11 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <div className="min-h-screen pt-16 sm:pt-20 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+    <div className="min-h-screen pt-16 -mt-16 sm:pt-20 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 -mb-8">
+      <div className="container mx-auto px-4 -mt-8 py-8">
+        <div className="flex flex-col md:flex-row justify-between -mt-12 items-start md:items-center mb-8 gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-gradient-blue mb-2">User Management</h1>
+            <h1 className="text-4xl font-bold text-gradient-blue  mb-2">User Management</h1>
             <p className="text-lg text-high-contrast">Manage user accounts, roles, and permissions</p>
           </div>
           {user?.role === "super_admin" && (
@@ -336,7 +341,6 @@ export default function AdminUsersPage() {
                     <SelectItem value="USER">Users</SelectItem>
                     <SelectItem value="ADMIN">Admins</SelectItem>
                     <SelectItem value="SUPER_ADMIN">Super Admins</SelectItem>
-                    <SelectItem value="LIVREUR">Delivery</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -382,28 +386,35 @@ export default function AdminUsersPage() {
                       <tr key={u.id} className="border-b border-visible hover:bg-secondary/50">
                         <td className="py-4 px-2">
                           <div className="flex items-center gap-3">
-                            {u.avatarUrl ? (
-                              <img
-                                src={u.avatarUrl || "/placeholder.svg"}
-                                alt={u.name}
-                                className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement
-                                  target.style.display = "none"
-                                  target.nextElementSibling?.classList.remove("hidden")
-                                }}
-                              />
-                            ) : (
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
-                                <span className="text-white font-semibold text-sm">
-                                  {u.name
-                                    .split(" ")
-                                    .map((n) => n[0])
-                                    .join("")
-                                    .toUpperCase()}
-                                </span>
+                            <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-sm">
+                              {u.avatarUrl && (
+                                <img
+                                  src={u.avatarUrl}
+                                  alt={u.name}
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = "none";
+                                    const fallback = target.nextElementSibling as HTMLElement;
+                                    if (fallback) {
+                                      fallback.classList.remove("hidden");
+                                    }
+                                  }}
+                                />
+                              )}
+                              <div
+                                className={`absolute inset-0 w-full h-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm ${
+                                  u.avatarUrl ? "hidden" : ""
+                                }`}
+                              >
+                                {u.name
+                                  .split(" ")
+                                  .map((n) => n[0])
+                                  .join("")
+                                  .toUpperCase()}
                               </div>
-                            )}
+                            </div>
                             <div>
                               <div className="font-medium text-high-contrast">{u.name}</div>
                               <div className="text-sm text-medium-contrast">ID: {u.id}</div>

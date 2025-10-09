@@ -20,15 +20,11 @@ interface Brand {
   id: string
   name: string
   slug: string
+  logo: string
   description: string
-  logoUrl: string
-  bannerUrl: string
-  website: string
-  country: string
-  founded: number
   productCount: number
-  isFeatured: boolean
   isActive: boolean
+  isFeatured: boolean
   createdAt: string
   updatedAt: string
 }
@@ -36,10 +32,8 @@ interface Brand {
 interface BrandVDTO {
   name: string
   slug: string
+  logoUrl: string
   description: string
-  logo: string
-  website: string
-  sorteOrder: number
   isActive: boolean
   isFeatured: boolean
 }
@@ -57,23 +51,20 @@ export default function EditBrandDialog({ isOpen, onOpenChange, brand, onBrandUp
   const [formData, setFormData] = useState<BrandVDTO>({
     name: "",
     slug: "",
+    logoUrl: "",
     description: "",
-    logo: "",
-    website: "",
-    sorteOrder: 0,
     isActive: true,
     isFeatured: false,
   })
+  const url = process.env.NEXT_PUBLIC_API_URL
 
   useEffect(() => {
     if (brand && isOpen) {
       setFormData({
         name: brand.name,
         slug: brand.slug,
+        logoUrl: brand.logo,
         description: brand.description,
-        logo: brand.logoUrl,
-        website: brand.website,
-        sorteOrder: 0,
         isActive: brand.isActive,
         isFeatured: brand.isFeatured,
       })
@@ -81,10 +72,10 @@ export default function EditBrandDialog({ isOpen, onOpenChange, brand, onBrandUp
   }, [brand, isOpen])
 
   const handleSubmit = async () => {
-    if (!brand || !formData.name.trim() || !formData.slug.trim()) {
+    if (!brand || !formData.name.trim() || !formData.slug.trim() || !formData.logoUrl.trim()) {
       toast({
         title: "Error",
-        description: "Brand name and slug are required",
+        description: "Brand name, slug, and logo URL are required",
         variant: "destructive",
       })
       return
@@ -92,13 +83,20 @@ export default function EditBrandDialog({ isOpen, onOpenChange, brand, onBrandUp
 
     try {
       setIsLoading(true)
-      const response = await fetch(`https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/brands/${brand.id}`, {
+      const response = await fetch(`${url}/admin/brands/${brand.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           authorization: `Bearer ${localStorage.getItem("auth_token")}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          name: formData.name,
+          slug: formData.slug,
+          logoUrl: formData.logoUrl,
+          description: formData.description,
+          isActive: formData.isActive,
+          isFeatured: formData.isFeatured,
+        }),
       })
 
       if (!response.ok) {
@@ -106,12 +104,17 @@ export default function EditBrandDialog({ isOpen, onOpenChange, brand, onBrandUp
         throw new Error(errorData.message || "Failed to update brand")
       }
 
+      const resData = await response.json()
+      if (!resData.success) {
+        throw new Error(resData.message || "Failed to update brand")
+      }
+
       onBrandUpdated()
       onOpenChange(false)
 
       toast({
         title: "Success",
-        description: "Brand updated successfully",
+        description: resData.message || "Brand updated successfully",
       })
     } catch (error) {
       toast({
@@ -140,7 +143,7 @@ export default function EditBrandDialog({ isOpen, onOpenChange, brand, onBrandUp
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Enter brand name"
-                maxLength={100}
+                maxLength={150}
                 required
                 disabled={isLoading}
               />
@@ -152,7 +155,7 @@ export default function EditBrandDialog({ isOpen, onOpenChange, brand, onBrandUp
                 value={formData.slug}
                 onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
                 placeholder="brand-slug"
-                maxLength={100}
+                maxLength={150}
                 required
                 disabled={isLoading}
               />
@@ -167,47 +170,24 @@ export default function EditBrandDialog({ isOpen, onOpenChange, brand, onBrandUp
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Enter brand description"
               rows={3}
+              maxLength={1024}
               disabled={isLoading}
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="edit-website">Website</Label>
-              <Input
-                id="edit-website"
-                value={formData.website}
-                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                placeholder="https://example.com"
-                disabled={isLoading}
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-sorteOrder">Sort Order</Label>
-              <Input
-                id="edit-sorteOrder"
-                type="number"
-                value={formData.sorteOrder}
-                onChange={(e) => setFormData({ ...formData, sorteOrder: Number.parseInt(e.target.value) || 0 })}
-                placeholder="0"
-                disabled={isLoading}
-              />
-            </div>
           </div>
 
           <div>
-            <Label htmlFor="edit-logo">Logo URL</Label>
+            <Label htmlFor="edit-logo">Logo URL *</Label>
             <Input
               id="edit-logo"
-              value={formData.logo}
-              onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
+              value={formData.logoUrl}
+              onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
               placeholder="Enter logo URL"
               disabled={isLoading}
             />
-            {formData.logo && (
+            {formData.logoUrl && (
               <div className="mt-2">
                 <img
-                  src={formData.logo || "/Placeholder.png"}
+                  src={formData.logoUrl || "/Placeholder.png"}
                   alt="Logo preview"
                   className="w-16 h-16 object-cover rounded border"
                   onError={(e) => {

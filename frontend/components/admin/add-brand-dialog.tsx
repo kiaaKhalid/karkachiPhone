@@ -17,28 +17,22 @@ import { Textarea } from "@/components/ui/textarea"
 import { Plus, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
-interface BrandVDTO {
+interface CreateBrandDto {
   name: string
-  slug: string
-  description: string
-  logo: string
-  website: string
-  sorteOrder: number
-  isActive: boolean
-  isFeatured: boolean
+  logoUrl: string
+  description?: string
+  isActive?: boolean
+  isFeatured?: boolean
 }
 
 interface AddBrandDialogProps {
   onBrandAdded: () => void
 }
 
-const initialFormData: BrandVDTO = {
+const initialFormData: CreateBrandDto = {
   name: "",
-  slug: "",
+  logoUrl: "",
   description: "",
-  logo: "",
-  website: "",
-  sorteOrder: 0,
   isActive: true,
   isFeatured: false,
 }
@@ -46,7 +40,7 @@ const initialFormData: BrandVDTO = {
 export default function AddBrandDialog({ onBrandAdded }: AddBrandDialogProps) {
   const { toast } = useToast()
   const [isOpen, setIsOpen] = useState(false)
-  const [formData, setFormData] = useState<BrandVDTO>(initialFormData)
+  const [formData, setFormData] = useState<CreateBrandDto>(initialFormData)
   const [isLoading, setIsLoading] = useState(false)
 
   const handleOpenChange = (open: boolean) => {
@@ -57,10 +51,10 @@ export default function AddBrandDialog({ onBrandAdded }: AddBrandDialogProps) {
   }
 
   const handleAddBrand = async () => {
-    if (!formData.name.trim() || !formData.slug.trim()) {
+    if (!formData.name.trim() || !formData.logoUrl.trim()) {
       toast({
         title: "Error",
-        description: "Brand name and slug are required",
+        description: "Brand name and logo URL are required",
         variant: "destructive",
       })
       return
@@ -69,11 +63,14 @@ export default function AddBrandDialog({ onBrandAdded }: AddBrandDialogProps) {
     setIsLoading(true)
 
     try {
-      const response = await fetch("https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/admin/brands", {
+      const url = process.env.NEXT_PUBLIC_API_URL
+      const token = localStorage.getItem("auth_token")
+
+      const response = await fetch(`${url}/admin/brands`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(formData),
       })
@@ -83,14 +80,20 @@ export default function AddBrandDialog({ onBrandAdded }: AddBrandDialogProps) {
         throw new Error(errorData.message || "Failed to create brand")
       }
 
-      setFormData(initialFormData)
-      setIsOpen(false)
-      onBrandAdded()
+      const data = await response.json()
 
-      toast({
-        title: "Success",
-        description: "Brand added successfully",
-      })
+      if (data.success) {
+        setFormData(initialFormData)
+        setIsOpen(false)
+        onBrandAdded()
+
+        toast({
+          title: "Success",
+          description: "Brand added successfully",
+        })
+      } else {
+        throw new Error("Failed to create brand")
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -116,29 +119,40 @@ export default function AddBrandDialog({ onBrandAdded }: AddBrandDialogProps) {
           <DialogDescription>Create a new brand for your products</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="name">Brand Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter brand name"
-                maxLength={100}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="slug">Slug *</Label>
-              <Input
-                id="slug"
-                value={formData.slug}
-                onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                placeholder="brand-slug"
-                maxLength={100}
-                required
-              />
-            </div>
+          <div>
+            <Label htmlFor="name">Brand Name *</Label>
+            <Input
+              id="name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Enter brand name"
+              maxLength={150}
+              required
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="logoUrl">Logo URL *</Label>
+            <Input
+              id="logoUrl"
+              value={formData.logoUrl}
+              onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
+              placeholder="https://example.com/logo.png"
+              maxLength={255}
+              required
+            />
+            {formData.logoUrl && (
+              <div className="mt-2">
+                <img
+                  src={formData.logoUrl || "/Placeholder.png"}
+                  alt="Logo preview"
+                  className="w-16 h-16 object-cover rounded border"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none"
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           <div>
@@ -149,51 +163,8 @@ export default function AddBrandDialog({ onBrandAdded }: AddBrandDialogProps) {
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Enter brand description"
               rows={3}
+              maxLength={1024}
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="website">Website</Label>
-              <Input
-                id="website"
-                value={formData.website}
-                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                placeholder="https://example.com"
-              />
-            </div>
-            <div>
-              <Label htmlFor="sorteOrder">Sort Order</Label>
-              <Input
-                id="sorteOrder"
-                type="number"
-                value={formData.sorteOrder}
-                onChange={(e) => setFormData({ ...formData, sorteOrder: Number.parseInt(e.target.value) || 0 })}
-                placeholder="0"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="logo">Logo URL</Label>
-            <Input
-              id="logo"
-              value={formData.logo}
-              onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
-              placeholder="Enter logo URL"
-            />
-            {formData.logo && (
-              <div className="mt-2">
-                <img
-                  src={formData.logo || "/Placeholder.png"}
-                  alt="Logo preview"
-                  className="w-16 h-16 object-cover rounded border"
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none"
-                  }}
-                />
-              </div>
-            )}
           </div>
 
           <div className="flex items-center space-x-4">
