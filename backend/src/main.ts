@@ -12,7 +12,7 @@ async function bootstrap() {
   // ✅ Enhanced CORS: Dynamic origin validation
   const frontendOrigins = [
     process.env.FRONTEND_URL || 'http://localhost:3000',
-    'http://localhost:3001', // For multi-port dev if needed
+    'https://www.karkachiphone.com', // For multi-port dev if needed
   ];
 
   app.enableCors({
