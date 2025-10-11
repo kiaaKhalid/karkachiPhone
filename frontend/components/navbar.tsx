@@ -286,31 +286,6 @@ export default function Navbar() {
                     </div>
                   </div>
 
-                  {/* Language */}
-                  <div>
-                    <div className="flex items-center space-x-2 mb-4">
-                      <Globe className="h-5 w-5" />
-                      <h3 className="text-lg font-semibold">Langue</h3>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {languages.map((lang) => (
-                        <button
-                          key={lang.code}
-                          onClick={() => setCurrentLanguage(lang.code)}
-                          className={cn(
-                            "flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors",
-                            currentLanguage === lang.code
-                              ? "bg-[#01A0EA] text-white"
-                              : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                          )}
-                        >
-                          <span className="text-lg">{lang.flag}</span>
-                          <span className="font-medium">{lang.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
                   {/* Actions rapides */}
                   <div>
                     <h3 className="text-lg font-semibold mb-4">Actions rapides</h3>
