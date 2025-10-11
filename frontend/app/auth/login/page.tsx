@@ -52,6 +52,54 @@ export default function LoginPage() {
     handleRedirect();
   }, [isUserAuthenticated, regularUser, router, redirectTo, isRedirecting, recheckSession]);
 
+  const syncLocalCartToServer = async () => {
+    try {
+      const localCartStr = localStorage.getItem("cart");
+      if (!localCartStr) return;
+
+      const localCart = JSON.parse(localCartStr);
+      if (!Array.isArray(localCart) || localCart.length === 0) {
+        localStorage.removeItem("cart");
+        return;
+      }
+
+      const items = localCart.map((item: any) => ({
+        productId: item.id,
+        quantity: item.quantity,
+      }));
+
+      const token = localStorage.getItem("auth_token");
+      if (!token) throw new Error("Token manquant");
+
+      const response = await fetch(`${apiUrl}/person/cart/items/all`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ items }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la synchronisation du panier");
+      }
+
+      // Efface le panier local une fois synchronisé
+      localStorage.removeItem("cart");
+      toast({
+        title: "Panier synchronisé",
+        description: "Vos articles locaux ont été ajoutés au panier serveur.",
+      });
+    } catch (err: any) {
+      console.error("Erreur synchronisation panier:", err);
+      toast({
+        title: "Erreur synchronisation",
+        description: "Impossible de synchroniser le panier local.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -61,6 +109,9 @@ export default function LoginPage() {
       const userResult = await userLogin(email, password);
 
       if (userResult.success && userResult.user) {
+        // Synchronise le panier local vers le serveur après login réussi
+        await syncLocalCartToServer();
+
         toast({
           title: "Connexion réussie !",
           description: `Bienvenue, ${userResult.user.name} !`,
@@ -70,9 +121,11 @@ export default function LoginPage() {
         return;
       }
 
-      setError(userResult.error || "Email ou mot de passe incorrect");
+      // Message statique simple pour toutes les erreurs d'auth
+      setError("Identifiants incorrects");
     } catch (err) {
       console.error("Erreur de connexion :", err);
+      // Message statique simple pour les erreurs inattendues
       setError("Une erreur inattendue est survenue");
     } finally {
       setIsLoading(false);

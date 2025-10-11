@@ -15,7 +15,7 @@ export function FloatingWhatsAppButton() {
   const shouldShow = !pathname.startsWith("/admin") && !pathname.startsWith("/auth/") && user?.role !== "admin"
 
   const handleWhatsAppClick = () => {
-    const phoneNumber = "+1234567890" // Replace with your WhatsApp number
+    const phoneNumber = "+212676423340"
     const message = "Hello! I'm interested in your products."
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`
     window.open(whatsappUrl, "_blank")

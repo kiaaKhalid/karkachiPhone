@@ -21,21 +21,40 @@ import {
   AlertCircle,
   QrCode,
   Star,
+  User,
+  ShoppingCart,
+  X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
 import { generateTrackingQRCode } from "@/lib/tracking"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+
+interface OrderItem {
+  id: string
+  name: string
+  unitPrice: number
+  quantity: number
+  image: string
+  totalPrice: number
+  orderId: string
+  productId: string
+}
 
 interface Order {
   id: string
   total: number
   status: "pending" | "processing" | "shipped" | "delivered" | "cancelled"
   userId: string
+  user?: {
+    name: string
+    email: string
+  }
   createdAt: string
   updatedAt: string
   version: number
+  items?: OrderItem[]
   orderNumber?: string
   date?: string
   paymentMethod?: string
@@ -43,7 +62,10 @@ interface Order {
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [showCancelConfirm, setShowCancelConfirm] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [detailsLoading, setDetailsLoading] = useState(false)
   const { user } = useAuth()
   const { toast } = useToast()
   const [showQRCode, setShowQRCode] = useState<string | null>(null)
@@ -89,6 +111,86 @@ export default function OrdersPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchOrderDetails = async (id: string) => {
+    setDetailsLoading(true)
+    try {
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/person/orders/${id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch order details')
+      }
+
+      const result = await response.json()
+      if (result.success) {
+        const orderDetails = {
+          ...result.data,
+          total: parseFloat(result.data.total),
+          items: result.data.items.map((item: any) => ({
+            ...item,
+            unitPrice: parseFloat(item.unitPrice),
+            totalPrice: parseFloat(item.totalPrice),
+          })),
+        }
+        const fullOrder = orders.find(o => o.id === id)
+        setSelectedOrder({
+          ...orderDetails,
+          user: fullOrder?.user,
+          orderNumber: `KP-${new Date(orderDetails.createdAt).getFullYear()}-${orderDetails.id.slice(-3).toUpperCase()}`,
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching order details:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les détails de la commande",
+        variant: "destructive",
+      })
+    } finally {
+      setDetailsLoading(false)
+    }
+  }
+
+  const cancelOrder = async (id: string) => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/person/orders/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to cancel order')
+      }
+
+      const result = await response.json()
+      if (result.success) {
+        setOrders(orders.filter(o => o.id !== id))
+        toast({
+          title: "Succès",
+          description: "Commande annulée avec succès",
+        })
+      }
+    } catch (error) {
+      console.error('Error cancelling order:', error)
+      toast({
+        title: "Erreur",
+        description: "Impossible d'annuler la commande",
+        variant: "destructive",
+      })
+    }
+    setShowCancelConfirm(null)
   }
 
   const getStatusColor = (status: Order["status"]) => {
@@ -272,10 +374,18 @@ export default function OrdersPage() {
                 {/* Action Buttons */}
                 <div className="flex flex-wrap gap-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                   {order.status === "pending" && (
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={() => setShowCancelConfirm(order.id)}
+                    >
                       Annuler la commande
                     </Button>
                   )}
+
+                  <Button variant="outline" size="sm" onClick={() => fetchOrderDetails(order.id)}>
+                    Voir les détails
+                  </Button>
 
                   <Button variant="outline" size="sm">
                     Contacter le support
@@ -308,6 +418,130 @@ export default function OrdersPage() {
           ))}
         </div>
       )}
+
+      {/* Cancel Confirmation Dialog */}
+      <Dialog open={!!showCancelConfirm} onOpenChange={() => setShowCancelConfirm(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmer l'annulation</DialogTitle>
+            <DialogDescription>
+              Êtes-vous sûr de vouloir annuler cette commande ? Cette action est irréversible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelConfirm(null)}>
+              Annuler
+            </Button>
+            <Button variant="destructive" onClick={() => showCancelConfirm && cancelOrder(showCancelConfirm)}>
+              Confirmer l'annulation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Order Details Modal */}
+      <Dialog open={!!selectedOrder && !detailsLoading} onOpenChange={() => setSelectedOrder(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5" />
+              Détails de la commande #{selectedOrder?.orderNumber}
+            </DialogTitle>
+            <DialogDescription>
+              Informations complètes sur la commande et ses articles.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedOrder && (
+            <div className="space-y-6 py-4">
+              {/* Order Summary */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Résumé de la commande
+                </h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Statut:</p>
+                    <Badge className={cn("mt-1", getStatusColor(selectedOrder.status))}>
+                      {getStatusText(selectedOrder.status)}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Date de création:</p>
+                    <p className="font-medium">{new Date(selectedOrder.createdAt).toLocaleDateString("fr-FR")}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Total:</p>
+                    <p className="font-bold text-lg">{selectedOrder.total.toLocaleString()} DH</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Version:</p>
+                    <p>{selectedOrder.version}</p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* User Information */}
+              {selectedOrder.user && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Informations client
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-600 dark:text-gray-400">Nom:</p>
+                      <p className="font-medium">{selectedOrder.user.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 dark:text-gray-400">Email:</p>
+                      <p>{selectedOrder.user.email}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <Separator />
+
+              {/* Items */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Articles commandés
+                </h3>
+                <div className="space-y-4">
+                  {selectedOrder.items?.map((item) => (
+                    <div key={item.id} className="flex gap-4 p-4 border rounded-lg">
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-20 h-20 object-cover rounded"
+                      />
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900 dark:text-white">{item.name}</h4>
+                        <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400 mt-2">
+                          <div>
+                            <p>Quantité: <span className="font-medium">{item.quantity}</span></p>
+                            <p>Prix unitaire: <span className="font-medium">{item.unitPrice.toLocaleString()} DH</span></p>
+                          </div>
+                          <div>
+                            <p>Total article: <span className="font-bold">{item.totalPrice.toLocaleString()} DH</span></p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )) || (
+                    <p className="text-gray-600 dark:text-gray-400">Aucun article trouvé.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* QR Code Modal */}
       <Dialog open={!!showQRCode} onOpenChange={() => setShowQRCode(null)}>
         <DialogContent className="max-w-md">
@@ -338,6 +572,7 @@ export default function OrdersPage() {
             })()}
         </DialogContent>
       </Dialog>
+
       {/* Social Media Review Modal */}
       <Dialog open={!!showSocialModal} onOpenChange={() => setShowSocialModal(null)}>
         <DialogContent className="max-w-md">

@@ -13,17 +13,18 @@ import {
   Clock,
   Copy,
   MapPin,
-  Phone,
   Calendar,
   Shield,
   Info,
   AlertCircle,
   Star,
+  User,
+  ShoppingCart,
 } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
-import { useAuth } from "@/hooks/use-auth"
 import { useToast } from "@/hooks/use-toast"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface Order {
   id: string
@@ -36,28 +37,71 @@ interface Order {
   }
   createdAt: string
   updatedAt: string
+  version?: number
   orderNumber?: string // Computed
   date?: string // Computed from createdAt
 }
 
-export default function OrdersPage() {
+interface OrderDetail extends Order {
+  user: {
+    id: string
+    name: string
+    email: string
+    phone: string
+    avatarUrl?: string
+    isEmailVerified: boolean
+    role: string
+    authProvider: string
+    isActive: boolean
+    createdAt: string
+    updatedAt: string
+    version: number
+  }
+  items: {
+    id: string
+    name: string
+    unitPrice: number
+    quantity: number
+    image: string
+    totalPrice: number
+    orderId: string
+    productId: string
+  }[]
+}
+
+interface ConfirmData {
+  id: string
+  newStatus: string
+  version: number
+}
+
+export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
+  const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null)
+  const [confirmData, setConfirmData] = useState<ConfirmData | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
-  const limit = 10
-  const { user } = useAuth()
+  const [statusFilter, setStatusFilter] = useState("")
+  const limit = 25
+  const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null
   const { toast } = useToast()
-  const [showSocialModal, setShowSocialModal] = useState<string | null>(null)
 
-  const fetchOrders = async (page: number = currentPage) => {
+  const fetchOrders = async (page: number = currentPage, filter: string = statusFilter) => {
     setLoading(true)
     try {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
       })
-      const response = await fetch(`/api/orders?${params.toString()}`)
+      if (filter) {
+        params.append("status", filter)
+      }
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/orders?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
       if (!response.ok) {
         throw new Error('Failed to fetch orders')
       }
@@ -65,6 +109,8 @@ export default function OrdersPage() {
       if (result.success) {
         const mappedOrders = result.data.data.map((order: any) => ({
           ...order,
+          total: Number(order.total),
+          version: order.version || 0,
           orderNumber: `KP-${new Date(order.createdAt).getFullYear()}-${order.id.slice(-4).toUpperCase()}`,
           date: order.createdAt,
         }))
@@ -85,9 +131,128 @@ export default function OrdersPage() {
     }
   }
 
+  const fetchOrderDetails = async (id: string) => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/orders/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      if (!response.ok) {
+        throw new Error('Failed to fetch order details')
+      }
+      const result = await response.json()
+      if (result.success) {
+        const orderWithNumber = {
+          ...result.data,
+          total: parseFloat(result.data.total),
+          orderNumber: `KP-${new Date(result.data.createdAt).getFullYear()}-${result.data.id.slice(-4).toUpperCase()}`,
+          items: result.data.items.map((item: any) => ({
+            ...item,
+            unitPrice: parseFloat(item.unitPrice),
+            totalPrice: parseFloat(item.totalPrice),
+          })),
+        }
+        setSelectedOrder(orderWithNumber)
+      } else {
+        throw new Error(result.message || 'Failed to fetch order details')
+      }
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les détails de la commande",
+        variant: "destructive",
+      })
+    }
+  }
+
+  useEffect(() => {
+    fetchOrders(1, statusFilter)
+    setCurrentPage(1)
+  }, [statusFilter])
+
   useEffect(() => {
     fetchOrders()
   }, [currentPage])
+
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value === "all" ? "" : value)
+  }
+
+  const updateStatus = async (id: string, newStatus: Order["status"], version: number) => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/orders/${id}/status`, {
+        method: "PATCH",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus, version }),
+      })
+      if (!response.ok) {
+        throw new Error("Failed to update status")
+      }
+      const result = await response.json()
+      if (result.success) {
+        setOrders(orders.map((o) => (o.id === id ? { ...o, ...result.data } : o)))
+        if (selectedOrder?.id === id) {
+          setSelectedOrder({ ...selectedOrder, ...result.data, status: newStatus })
+        }
+        toast({
+          title: "Succès",
+          description: "Statut mis à jour avec succès",
+        })
+      } else {
+        throw new Error(result.message || "Failed to update status")
+      }
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour le statut",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleStatusChange = (id: string, currentStatus: Order["status"], version: number, newStatus: string) => {
+    if (newStatus === currentStatus) return;
+    setConfirmData({ id, newStatus, version });
+  }
+
+  const confirmStatusChange = () => {
+    if (confirmData) {
+      updateStatus(confirmData.id, confirmData.newStatus as Order["status"], confirmData.version);
+      setConfirmData(null);
+    }
+  }
+
+  const handleExport = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/orders/exports`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      if (!response.ok) {
+        throw new Error("Failed to export")
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = "orders-export.pdf"
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible d'exporter le PDF",
+        variant: "destructive",
+      })
+    }
+  }
 
   const totalPages = Math.ceil(totalItems / limit)
 
@@ -167,20 +332,38 @@ export default function OrdersPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Mes Commandes</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">Suivez l'état de vos commandes et gérez vos achats</p>
+      <div className="mb-8 -mt-20">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestion des Commandes</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">Suivez et gérez l'état de toutes les commandes</p>
+      </div>
+
+      <div className="mb-6 flex justify-between items-center">
+        <Select value={statusFilter === "" ? "all" : statusFilter} onValueChange={handleStatusFilterChange}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Tous les statuts" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les statuts</SelectItem>
+            <SelectItem value="pending">En attente</SelectItem>
+            <SelectItem value="processing">En traitement</SelectItem>
+            <SelectItem value="shipped">Expédié</SelectItem>
+            <SelectItem value="delivered">Livré</SelectItem>
+            <SelectItem value="cancelled">Annulé</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button onClick={handleExport}>
+          Exporter en PDF
+        </Button>
       </div>
 
       {orders.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Package className="h-12 w-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Aucune commande</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Aucune commande trouvée</h3>
             <p className="text-gray-600 dark:text-gray-400 text-center">
-              Vous n'avez pas encore passé de commande. Découvrez nos produits !
+              Aucune commande ne correspond aux critères de recherche.
             </p>
-            <Button className="mt-4 bg-[#01A0EA] hover:bg-[#0190D4]">Voir les produits</Button>
           </CardContent>
         </Card>
       ) : (
@@ -217,8 +400,7 @@ export default function OrdersPage() {
                     <Alert className="mb-6 border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-900/20">
                       <Info className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
                       <AlertDescription className="text-yellow-800 dark:text-yellow-200">
-                        Votre commande est en attente de confirmation par notre équipe. Vous recevrez une notification dès
-                        qu'elle sera traitée.
+                        Cette commande est en attente de confirmation par l'équipe.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -227,7 +409,7 @@ export default function OrdersPage() {
                     <Alert className="mb-6 border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20">
                       <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                       <AlertDescription className="text-blue-800 dark:text-blue-200">
-                        Votre commande a été confirmée et est en cours de préparation.
+                        Cette commande est en cours de préparation.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -236,7 +418,7 @@ export default function OrdersPage() {
                     <Alert className="mb-6 border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-900/20">
                       <Truck className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                       <AlertDescription className="text-purple-800 dark:text-purple-200">
-                        Votre commande a été expédiée ! Suivez votre colis avec le numéro de suivi ci-dessous.
+                        Cette commande a été expédiée.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -245,7 +427,7 @@ export default function OrdersPage() {
                     <Alert className="mb-6 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20">
                       <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                       <AlertDescription className="text-green-800 dark:text-green-200">
-                        Votre commande a été livrée avec succès !
+                        Cette commande a été livrée avec succès.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -269,26 +451,21 @@ export default function OrdersPage() {
 
                   {/* Action Buttons */}
                   <div className="flex flex-wrap gap-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                    {order.status === "pending" && (
-                      <Button variant="outline" size="sm">
-                        Annuler la commande
-                      </Button>
-                    )}
+                    <Select value={order.status} onValueChange={(value) => handleStatusChange(order.id, order.status, order.version || 0, value)}>
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder={`Statut actuel: ${getStatusText(order.status)}`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">{getStatusText("pending")}</SelectItem>
+                        <SelectItem value="processing">{getStatusText("processing")}</SelectItem>
+                        <SelectItem value="shipped">{getStatusText("shipped")}</SelectItem>
+                        <SelectItem value="delivered">{getStatusText("delivered")}</SelectItem>
+                        <SelectItem value="cancelled">{getStatusText("cancelled")}</SelectItem>
+                      </SelectContent>
+                    </Select>
 
-                    {order.status === "delivered" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowSocialModal(order.id)}
-                        className="flex items-center gap-2"
-                      >
-                        <Star className="h-4 w-4" />
-                        Laisser un avis
-                      </Button>
-                    )}
-
-                    <Button variant="outline" size="sm">
-                      Contacter le support
+                    <Button variant="outline" size="sm" onClick={() => fetchOrderDetails(order.id)}>
+                      Voir les détails
                     </Button>
                   </div>
                 </CardContent>
@@ -325,112 +502,139 @@ export default function OrdersPage() {
         </>
       )}
 
-      {/* Social Media Review Modal */}
-      <Dialog open={!!showSocialModal} onOpenChange={() => setShowSocialModal(null)}>
-        <DialogContent className="max-w-md">
+      {/* Order Details Modal */}
+      <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Partagez votre expérience</DialogTitle>
-            <DialogDescription>Laissez un avis sur nos réseaux sociaux ou sur notre plateforme</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5" />
+              Détails de la commande #{selectedOrder?.orderNumber}
+            </DialogTitle>
+            <DialogDescription>
+              Informations complètes sur la commande et ses articles.
+            </DialogDescription>
           </DialogHeader>
-          {showSocialModal &&
-            (() => {
-              const order = orders.find((o) => o.id === showSocialModal)
-              if (!order) return null
-
-              const reviewText = `Je viens de recevoir ma commande ${order.orderNumber} de KasbaPhone ! Excellent service et livraison rapide. Je recommande ! #KasbaPhone`
-
-              return (
-                <div className="space-y-4 py-4">
-                  <div className="text-center space-y-2 mb-6">
-                    <p className="text-sm font-medium">Commande: {order.orderNumber}</p>
+          {selectedOrder && (
+            <div className="space-y-6 py-4">
+              {/* Order Summary */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Résumé de la commande
+                </h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Statut:</p>
+                    <Badge className={cn("mt-1", getStatusColor(selectedOrder.status))}>
+                      {getStatusText(selectedOrder.status)}
+                    </Badge>
                   </div>
-
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm mb-3">Réseaux sociaux:</h4>
-
-                    {/* Facebook */}
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start gap-3 h-12 text-blue-600 border-blue-200 hover:bg-blue-50 bg-transparent"
-                      onClick={() => {
-                        const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.origin)}&quote=${encodeURIComponent(reviewText)}`
-                        window.open(facebookUrl, "_blank", "width=600,height=400")
-                      }}
-                    >
-                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                      </svg>
-                      Partager sur Facebook
-                    </Button>
-
-                    {/* Instagram */}
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start gap-3 h-12 text-pink-600 border-pink-200 hover:bg-pink-50 bg-transparent"
-                      onClick={() => {
-                        const instagramUrl = `https://www.instagram.com/`
-                        window.open(instagramUrl, "_blank")
-                        toast({
-                          title: "Instagram ouvert",
-                          description: "Partagez une photo de votre produit avec #KasbaPhone",
-                        })
-                      }}
-                    >
-                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 6.62 5.367 11.987 11.988 11.987 6.62 0 11.987-5.367 11.987-11.987C24.014 5.367 18.637.001 12.017.001zM8.449 16.988c-1.297 0-2.448-.49-3.323-1.297C4.198 14.895 3.708 13.744 3.708 12.447s.49-2.448 1.418-3.323c.875-.807 2.026-1.297 3.323-1.297s2.448.49 3.323 1.297c.928.875 1.418 2.026 1.418 3.323s-.49 2.448-1.418 3.323c-.875.807-2.026 1.297-3.323 1.297zm7.138 0c-1.297 0-2.448-.49-3.323-1.297-.928-.875-1.418-2.026-1.418-3.323s.49-2.448 1.418-3.323c.875-.807 2.026-1.297 3.323-1.297s2.448.49 3.323 1.297c.928.875 1.418 2.026 1.418 3.323s-.49 2.448-1.418 3.323c-.875.807-2.026 1.297-3.323 1.297z" />
-                      </svg>
-                      Partager sur Instagram
-                    </Button>
-
-                    {/* Twitter/X */}
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start gap-3 h-12 text-gray-900 border-gray-200 hover:bg-gray-50 bg-transparent dark:text-white dark:border-gray-700 dark:hover:bg-gray-800"
-                      onClick={() => {
-                        const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(reviewText)}&url=${encodeURIComponent(window.location.origin)}`
-                        window.open(twitterUrl, "_blank", "width=600,height=400")
-                      }}
-                    >
-                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488" />
-                      </svg>
-                      Partager sur X (Twitter)
-                    </Button>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Date de création:</p>
+                    <p className="font-medium">{new Date(selectedOrder.createdAt).toLocaleDateString("fr-FR")}</p>
                   </div>
-
-                  {/* Platform Review */}
-                  <div className="border-t pt-4 mt-4">
-                    <h4 className="font-medium text-sm mb-3">Avis sur notre plateforme:</h4>
-
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start gap-3 h-12 text-[#01A0EA] border-[#01A0EA] hover:bg-blue-50 bg-transparent"
-                      onClick={() => {
-                        toast({
-                          title: "Merci !",
-                          description: "Redirection vers la page d'avis...",
-                        })
-                        // You can add navigation logic here
-                      }}
-                    >
-                      <Star className="h-5 w-5" />
-                      Laisser un avis sur KasbaPhone
-                    </Button>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Total:</p>
+                    <p className="font-bold text-lg">{selectedOrder.total.toLocaleString()} DH</p>
                   </div>
-
-                  {/* Close Button */}
-                  <div className="flex justify-end pt-4 border-t">
-                    <Button
-                      variant="ghost"
-                      onClick={() => setShowSocialModal(null)}
-                      className="text-gray-600 hover:text-gray-800"
-                    >
-                      Fermer
-                    </Button>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Version:</p>
+                    <p>{selectedOrder.version}</p>
                   </div>
                 </div>
-              )
-            })()}
+              </div>
+
+              <Separator />
+
+              {/* User Information */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Informations client
+                </h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Nom:</p>
+                    <p className="font-medium">{selectedOrder.user.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Email:</p>
+                    <p>{selectedOrder.user.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Téléphone:</p>
+                    <p>{selectedOrder.user.phone}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Vérifié:</p>
+                    <p>{selectedOrder.user.isEmailVerified ? "Oui" : "Non"}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Rôle:</p>
+                    <p className="capitalize">{selectedOrder.user.role.toLowerCase()}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600 dark:text-gray-400">Actif:</p>
+                    <p>{selectedOrder.user.isActive ? "Oui" : "Non"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Items */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Articles commandés
+                </h3>
+                <div className="space-y-4">
+                  {selectedOrder.items.map((item) => (
+                    <div key={item.id} className="flex gap-4 p-4 border rounded-lg">
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-20 h-20 object-cover rounded"
+                      />
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900 dark:text-white">{item.name}</h4>
+                        <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400 mt-2">
+                          <div>
+                            <p>Quantité: <span className="font-medium">{item.quantity}</span></p>
+                            <p>Prix unitaire: <span className="font-medium">{item.unitPrice.toLocaleString()} DH</span></p>
+                          </div>
+                          <div>
+                            <p>Total article: <span className="font-bold">{item.totalPrice.toLocaleString()} DH</span></p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Status Change Confirmation Dialog */}
+      <Dialog open={!!confirmData} onOpenChange={() => setConfirmData(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmer le changement de statut</DialogTitle>
+            <DialogDescription>
+              Voulez-vous vraiment changer le statut de la commande vers{" "}
+              <span className="font-medium">{getStatusText(confirmData?.newStatus as Order["status"])}</span> ?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmData(null)}>
+              Annuler
+            </Button>
+            <Button onClick={confirmStatusChange}>
+              Confirmer
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

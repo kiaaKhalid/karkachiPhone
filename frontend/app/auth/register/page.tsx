@@ -4,14 +4,17 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
-import { User, Mail, Lock, Eye, EyeOff, UserPlus } from "lucide-react"
+import { Separator } from "@/components/ui/separator"
+import { User, Mail, Lock, Eye, EyeOff, UserPlus, Chrome } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/hooks/use-auth"
 
 interface SignUpData {
   name: string
@@ -21,15 +24,9 @@ interface SignUpData {
   confirmPassword: string
 }
 
-interface AuthResponse {
-  id: number
-  email: string
-  role: string
-  token: string
-}
+const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
 export default function RegisterPage() {
-  const [isPageLoading, setIsPageLoading] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -44,11 +41,23 @@ export default function RegisterPage() {
 
   const router = useRouter()
   const { toast } = useToast()
+  const { register: userRegister } = useAuth()
 
   const updateFormData = (field: keyof SignUpData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
     setError("") // Efface l'erreur quand l'utilisateur tape
   }
+
+  const handleSocialLogin = (provider: string) => {
+    if (provider === "Google") {
+      window.location.href = `${apiUrl}/auth/google`;
+      return;
+    }
+    toast({
+      title: "Bientôt disponible",
+      description: `L'inscription via ${provider} sera bientôt disponible !`,
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,84 +90,30 @@ export default function RegisterPage() {
     }
 
     try {
-      const url = `https://karkachiphon-app-a513bd8dab1d.herokuapp.com/api/auth/signup`
+      const fullName = `${formData.prenom.trim()} ${formData.name.trim()}`
 
-      const requestBody = {
-        name: formData.name.trim(),
-        prenom: formData.prenom.trim(),
-        email: formData.email.trim(),
-        password: formData.password,
-        role: "USER",
-      }
+      const result = await userRegister(fullName, formData.email.trim(), formData.password)
 
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      })
-
-      if (response.ok) {
-        const authResponse: AuthResponse = await response.json()
-
-        localStorage.setItem("token", authResponse.token)
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            id: authResponse.id,
-            email: authResponse.email,
-            role: authResponse.role,
-          }),
-        )
-
+      if (result.success && result.user) {
         toast({
           title: "Compte créé !",
           description: "Votre compte a été créé avec succès.",
         })
-
         router.push("/dashboard")
-      } else if (response.status === 409) {
-        setError("Cet email existe déjà. Veuillez en utiliser un autre.")
-      } else {
-        const errorMessage = await response.text()
-        setError(errorMessage || "Échec de la création du compte. Veuillez réessayer.")
+        return
       }
+
+      setError(result.error || "Échec de la création du compte. Veuillez réessayer.")
     } catch (err) {
-      if (err instanceof TypeError && err.message.includes("Failed to fetch")) {
-        setError("Impossible de se connecter au serveur. Vérifiez qu’il est en cours d’exécution.")
-      } else {
-        setError("Erreur réseau. Vérifiez votre connexion et réessayez.")
-      }
+      console.error("Erreur lors de l'inscription:", err)
+      setError("Une erreur imprévue est survenue. Veuillez réessayer.")
     } finally {
       setIsLoading(false)
     }
   }
 
-  if (isPageLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
-        <div className="w-full max-w-md">
-          <Card className="backdrop-blur-sm bg-white/80 dark:bg-gray-900/80 border border-gray-200/50 dark:border-gray-700/50 shadow-2xl">
-            <CardHeader className="space-y-1 text-center">
-              <div className="flex justify-center mb-4">
-                <Skeleton className="h-12 w-12 rounded-xl" />
-              </div>
-              <Skeleton className="h-8 w-48 mx-auto" />
-              <Skeleton className="h-4 w-64 mx-auto" />
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Skeleton className="h-10 w-full" />
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 -mt-8">
       <div className="w-full max-w-md">
         <Card className="backdrop-blur-sm bg-white/80 dark:bg-gray-900/80 border border-gray-200/50 dark:border-gray-700/50 shadow-2xl">
           <CardHeader className="space-y-1 text-center">
@@ -182,6 +137,34 @@ export default function RegisterPage() {
               </Alert>
             )}
 
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleSocialLogin("Google")}
+              className="w-full bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              disabled={isLoading}
+            >
+              <Image
+                src="/google.png" // Ensure this Google logo image exists in the public directory
+                alt="Google Logo"
+                width={20}
+                height={20}
+                className="object-contain mr-2"
+              />
+              <span className="text-gray-700 dark:text-gray-300">S'inscrire avec Google</span>
+            </Button>
+
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white dark:bg-gray-900 px-2 text-gray-500 dark:text-gray-400">
+                  Ou s'inscrire avec
+                </span>
+              </div>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Prénom & Nom */}
               <div className="grid grid-cols-2 gap-4">
@@ -192,7 +175,7 @@ export default function RegisterPage() {
                     <Input
                       id="name"
                       type="text"
-                      placeholder="Entrez votre nom"
+                      placeholder="Entrez votre prénom"
                       value={formData.name}
                       onChange={(e) => updateFormData("name", e.target.value)}
                       className="pl-10"
@@ -209,7 +192,7 @@ export default function RegisterPage() {
                     <Input
                       id="prenom"
                       type="text"
-                      placeholder="Entre votre prenom"
+                      placeholder="Entrez votre nom"
                       value={formData.prenom}
                       onChange={(e) => updateFormData("prenom", e.target.value)}
                       className="pl-10"

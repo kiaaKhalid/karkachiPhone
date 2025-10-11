@@ -1,4 +1,13 @@
-import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Query,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
@@ -9,6 +18,7 @@ import { Role } from '../common/enums/role.enum';
 import { AdminListOrdersDto } from './dto/admin-list-orders.dto';
 import { AdminSearchOrdersDto } from './dto/admin-search-orders.dto';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
+import { UpdateOrderStatusDto } from './dto/update-status.dto';
 
 @ApiTags('Admin - Orders')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -46,5 +56,23 @@ export class AdminOrdersController {
       'attachment; filename="orders-export.pdf"',
     );
     res.send(pdf);
+  }
+
+  @ApiOperation({ summary: "Détails d'une commande" })
+  @Get(':id')
+  async getOne(@Param('id') id: string) {
+    const order = await this.service.adminGetById(id);
+    return { success: true as const, message: 'OK', data: order };
+  }
+
+  @ApiOperation({ summary: 'Mettre à jour le statut de la commande' })
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @Patch(':id/status')
+  async updateStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateOrderStatusDto,
+  ) {
+    const order = await this.service.updateStatus(id, dto.status, dto.version);
+    return { success: true as const, message: 'OK', data: order };
   }
 }

@@ -17,12 +17,18 @@ export interface User {
   lastLogin?: string;
 }
 
+interface AuthResponse {
+  success: boolean;
+  error?: string;
+  user?: User;
+}
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; user?: User }>;
-  register: (name: string, email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<AuthResponse>;
+  register: (name: string, email: string, password: string) => Promise<AuthResponse>;
   logout: () => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
   setUser: (user: User | null) => Promise<void>;
@@ -71,6 +77,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     attempts.count++;
     attempts.lastAttempt = now;
     return true;
+  };
+
+  // Fonction utilitaire pour normaliser le rôle
+  const normalizeRole = (rawRole: string): "user" | "admin" | "super_admin" => {
+    const roleString = String(rawRole).toLowerCase().trim();
+    if (roleString === "super_admin" || roleString === "super admin") {
+      return "super_admin";
+    } else if (roleString === "admin") {
+      return "admin";
+    } else {
+      return "user";
+    }
+  };
+
+  // Fonction utilitaire pour créer un objet User complet
+  const createUserObject = (apiUser: any, token: string): User => {
+    const finalRole = normalizeRole(apiUser.role || "user");
+    return {
+      id: apiUser.id,
+      name: apiUser.name || apiUser.email?.split("@")[0] || "Utilisateur",
+      email: apiUser.email,
+      role: finalRole,
+      avatar: apiUser.avatar || "https://i.ibb.co/C3R4f9gT/user.png?height=40&width=40",
+      phone: apiUser.phone || "",
+      address: apiUser.address || "",
+      createdAt: apiUser.createdAt || new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
+    };
+  };
+
+  // Fonction utilitaire pour stocker les données auth
+  const storeAuthData = async (authUser: User, token: string) => {
+    const encryptedUser = await encryptData(JSON.stringify(authUser));
+    localStorage.setItem("auth_user", encryptedUser);
+    localStorage.setItem("auth_token", token);
   };
 
   useEffect(() => {
@@ -125,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkSession();
   }, []);
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string; user?: User }> => {
+  const login = async (email: string, password: string): Promise<AuthResponse> => {
     try {
       if (!checkRateLimit(email)) {
         return { success: false, error: "Trop de tentatives de connexion. Essayez à nouveau dans 15 minutes." };
@@ -139,45 +180,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!response.ok) {
-        return { success: false, error: "Identifiants invalides" };
+        const errorText = await response.text();
+        return { success: false, error: errorText || "Identifiants invalides" };
       }
 
       const data = await response.json();
 
-      // Normalize role - handle all formats including SUPER_ADMIN
-      const rawRole = data.user.role || "user";
-      const roleString = String(rawRole).toLowerCase().trim();
-      
-      let finalRole: "user" | "admin" | "super_admin";
-      if (roleString === "super_admin" || roleString === "super admin") {
-        finalRole = "super_admin";
-      } else if (roleString === "admin") {
-        finalRole = "admin";
-      } else {
-        finalRole = "user";
-      }
-
-      console.log("🎭 Role normalized:", { raw: rawRole, final: finalRole });
+      const authUser = createUserObject(data.user, data.accessToken);
+      await storeAuthData(authUser, data.accessToken);
+      setUserInternal(authUser);
 
       delete loginAttempts[email];
-
-      const authUser: User = {
-        id: data.user.id,
-        name: data.user.name || email.split("@")[0],
-        email: data.user.email,
-        role: finalRole,
-        avatar: data.user.avatar || "https://i.ibb.co/C3R4f9gT/user.png?height=40&width=40",
-        phone: data.user.phone || "",
-        address: data.user.address || "",
-        createdAt: data.user.createdAt || new Date().toISOString(),
-        lastLogin: new Date().toISOString(),
-      };
-
-      const encryptedUser = await encryptData(JSON.stringify(authUser));
-      localStorage.setItem("auth_user", encryptedUser);
-      localStorage.setItem("auth_token", data.accessToken);
-
-      setUserInternal(authUser);
 
       return { success: true, user: authUser };
     } catch (error) {
@@ -186,13 +199,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (name: string, email: string, password: string): Promise<boolean> => {
+  const register = async (name: string, email: string, password: string): Promise<AuthResponse> => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      return true;
+      const response = await fetch(`${apiUrl}/auth/signup`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ name, email, password }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          const errorText = await response.text();
+          return { success: false, error: errorText || "Cet email existe déjà. Veuillez en utiliser un autre." };
+        }
+        const errorText = await response.text();
+        return { success: false, error: errorText || "Échec de la création du compte." };
+      }
+
+      const data = await response.json();
+
+      const authUser = createUserObject(data.user, data.accessToken);
+      await storeAuthData(authUser, data.accessToken);
+      setUserInternal(authUser);
+
+      return { success: true, user: authUser };
     } catch (error) {
       console.error("❌ Erreur d'inscription :", error);
-      return false;
+      if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+        return { success: false, error: "Impossible de se connecter au serveur. Vérifiez qu'il est en cours d'exécution." };
+      }
+      return { success: false, error: "Erreur réseau. Vérifiez votre connexion et réessayez." };
     }
   };
 

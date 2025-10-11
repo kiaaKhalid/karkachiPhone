@@ -1,9 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
-  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -15,7 +15,6 @@ import { Roles } from '../auth/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { CreateDirectOrderDto } from './dto/create-direct-order.dto';
-import { UpdateOrderStatusDto } from './dto/update-status.dto';
 import { CartsService, CartSummary } from '../carts/carts.service';
 
 @ApiTags('Person - Orders')
@@ -78,15 +77,11 @@ export class OrdersController {
     return { success: true as const, message: 'OK', data: order };
   }
 
-  // 11. Update order status (ADMIN only)
-  @ApiOperation({ summary: 'Mettre à jour le statut de la commande' })
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
-  @Patch(':id/status')
-  async updateStatus(
-    @Param('id') id: string,
-    @Body() dto: UpdateOrderStatusDto,
-  ) {
-    const order = await this.service.updateStatus(id, dto.status, dto.version);
-    return { success: true as const, message: 'OK', data: order };
+  // 11. Delete my order (O(1) by PK + owner)
+  @ApiOperation({ summary: 'Supprimer ma commande' })
+  @Delete(':id')
+  async deleteOne(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    const result = await this.service.deleteMy(userId, id);
+    return { success: true as const, message: 'Deleted', data: result };
   }
 }

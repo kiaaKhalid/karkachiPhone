@@ -122,7 +122,7 @@ function ModernProductInfo({ product, averageRating, totalReviews }: { product: 
   const url = process.env.NEXT_PUBLIC_API_URL as string
 
   const whatsappMessage = `Salut! Je suis intéressé par ${product.name} - ${product.price} MAD`
-  const whatsappUrl = `https://wa.me/1234567890?text=${encodeURIComponent(whatsappMessage)}`
+  const whatsappUrl = `https://wa.me/+212676423340?text=${encodeURIComponent(whatsappMessage)}`
 
   const handleAddToCart = () => {
     addItem({

@@ -61,9 +61,6 @@ const menuItems = [
     title: "Orders",
     icon: ShoppingCart,
     href: "/admin/orders",
-    submenu: [
-      { title: "All Orders", href: "/admin/orders" },
-    ],
   },
   {
     title: "Users",

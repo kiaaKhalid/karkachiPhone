@@ -29,7 +29,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([])
   const [isLoaded, setIsLoaded] = useState(false)
 
-  // Load cart from localStorage on mount
+  // Load cart from localStorage on mount (only for guests/non-auth)
   useEffect(() => {
     try {
       const savedCart = localStorage.getItem("cart")
@@ -49,7 +49,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Save cart to localStorage whenever items change
+  // Save cart to localStorage whenever items change (only if not authenticated, but since sync happens on login, it's fine)
   useEffect(() => {
     if (isLoaded) {
       try {

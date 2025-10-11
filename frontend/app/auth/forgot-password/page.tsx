@@ -40,7 +40,7 @@ export default function ForgotPasswordPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const urlBase = process.env.NEXT_PUBLIC_API_URL || "https://karkachiphon-app-a513bd8dab1d.herokuapp.com"
+  const urlBase = process.env.NEXT_PUBLIC_API_URL
 
   const updateFormData = (field: keyof ForgotPasswordData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))

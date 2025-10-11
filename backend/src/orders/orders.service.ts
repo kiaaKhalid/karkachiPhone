@@ -43,6 +43,15 @@ export class OrdersService {
     return orders;
   }
 
+  // O(1): delete my order by id using PK + owner condition
+  async deleteMy(userId: string, id: string) {
+    const res = await this.orderRepo.delete({ id, userId });
+    if (!res.affected || res.affected === 0) {
+      throw new NotFoundException('Order not found');
+    }
+    return { id } as const;
+  }
+
   // ===== Helpers =====
   private getPeriodRange(period: AnalyticsPeriod): { from: Date; to: Date } {
     const to = new Date();
@@ -631,5 +640,15 @@ export class OrdersService {
       throw new BadRequestException('PDF export not available: install pdfkit');
     }
     /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
+  }
+
+  // ===== Admin: get order details by id (O(1) by PK)
+  async adminGetById(id: string) {
+    const order = await this.orderRepo.findOne({
+      where: { id },
+      relations: ['items', 'user'],
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    return order;
   }
 }
