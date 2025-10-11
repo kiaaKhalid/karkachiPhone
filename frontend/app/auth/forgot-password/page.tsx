@@ -53,7 +53,7 @@ export default function ForgotPasswordPage() {
     setError("")
 
     try {
-      const response = await fetch(`${urlBase}/api/auth/send-reset-code`, {
+      const response = await fetch(`${urlBase}/auth/send-reset-code`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -98,7 +98,7 @@ export default function ForgotPasswordPage() {
     }
 
     try {
-      const response = await fetch(`${urlBase}/api/auth/verify-reset-code`, {
+      const response = await fetch(`${urlBase}/auth/verify-reset-code`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -147,7 +147,7 @@ export default function ForgotPasswordPage() {
     }
 
     try {
-      const response = await fetch(`${urlBase}/api/auth/forget-password`, {
+      const response = await fetch(`${urlBase}/auth/forget-password`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
