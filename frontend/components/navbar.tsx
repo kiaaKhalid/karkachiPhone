@@ -237,14 +237,6 @@ export default function Navbar() {
                 )}
               </Link>
 
-              {/* Mobile User/Login */}
-              <button
-                onClick={() => isAuthenticated ? router.push("/dashboard") : router.push("/auth/login")}
-                className="p-2.5 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <User className="w-5 h-5" />
-              </button>
-
               {/* Theme Toggle */}
               <button
                 onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
