@@ -1,0 +1,353 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ========================================
+   KARKACHI PHONE — Design System v2.0
+   Color Palette:
+   - Navy:   #0F1B2D (primary / headings)
+   - Orange: #F97316 (accent / CTA)
+   - White:  #FFFFFF (background)
+   - Slate:  #F8F9FA (cards / sections)
+   ======================================== */
+
+@layer base {
+  :root {
+    /* ── Core ── */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    /* ── Cards / Surfaces ── */
+    --card: 210 20% 98%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* ── Brand Colors ── */
+    --primary: 216 52% 12%;          /* Deep Navy #0F1B2D */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 20% 96%;        /* Light Gray bg */
+    --secondary-foreground: 222 47% 11%;
+
+    --accent: 24 94% 53%;            /* Warm Orange #F97316 */
+    --accent-foreground: 0 0% 100%;
+
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* ── Borders / Inputs ── */
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 24 94% 53%;              /* Orange ring */
+
+    --radius: 0.625rem;
+
+    /* ── Chart Colors ── */
+    --chart-1: 24 94% 53%;
+    --chart-2: 216 52% 12%;
+    --chart-3: 142 71% 45%;
+    --chart-4: 0 84% 60%;
+    --chart-5: 270 60% 55%;
+
+    /* ── Sidebar ── */
+    --sidebar-background: 216 52% 12%;
+    --sidebar-foreground: 210 20% 96%;
+    --sidebar-primary: 24 94% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 216 48% 18%;
+    --sidebar-accent-foreground: 210 20% 96%;
+    --sidebar-border: 216 48% 18%;
+    --sidebar-ring: 24 94% 53%;
+  }
+
+  .dark {
+    --background: 222 47% 6%;         /* Very dark navy */
+    --foreground: 210 20% 96%;
+
+    --card: 222 44% 9%;
+    --card-foreground: 210 20% 96%;
+
+    --popover: 222 44% 9%;
+    --popover-foreground: 210 20% 96%;
+
+    --primary: 24 94% 53%;            /* Orange becomes primary in dark */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 222 44% 14%;
+    --secondary-foreground: 210 20% 96%;
+
+    --accent: 24 94% 53%;
+    --accent-foreground: 0 0% 100%;
+
+    --muted: 222 44% 14%;
+    --muted-foreground: 215 16% 60%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 222 44% 16%;
+    --input: 222 44% 14%;
+    --ring: 24 94% 53%;
+
+    --sidebar-background: 222 47% 5%;
+    --sidebar-foreground: 210 20% 96%;
+    --sidebar-primary: 24 94% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 44% 12%;
+    --sidebar-accent-foreground: 210 20% 96%;
+    --sidebar-border: 222 44% 12%;
+    --sidebar-ring: 24 94% 53%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tight;
+  }
+}
+
+/* ========================================
+   COMPONENTS
+   ======================================== */
+
+@layer components {
+  /* ── Touch targets ── */
+  .mobile-nav-button {
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+
+  .mobile-touch-target {
+    min-height: 44px;
+    min-width: 44px;
+    @apply relative p-2;
+  }
+
+  .mobile-sheet-content {
+    touch-action: manipulation;
+    @apply overflow-y-auto;
+    max-height: 100vh;
+  }
+
+  .mobile-button-states {
+    @apply active:scale-95 transition-transform duration-150;
+  }
+
+  /* ── RTL ── */
+  [dir="rtl"] { direction: rtl; }
+
+  [dir="rtl"] .space-x-2 > :not([hidden]) ~ :not([hidden]),
+  [dir="rtl"] .space-x-3 > :not([hidden]) ~ :not([hidden]),
+  [dir="rtl"] .space-x-4 > :not([hidden]) ~ :not([hidden]) {
+    --tw-space-x-reverse: 1;
+  }
+
+  /* ── Section container ── */
+  .section-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* ── Section heading ── */
+  .section-heading {
+    @apply text-2xl md:text-3xl font-bold text-foreground;
+  }
+
+  .section-subheading {
+    @apply text-muted-foreground text-sm md:text-base mt-1;
+  }
+
+  /* ── Product card base ── */
+  .product-card {
+    @apply bg-card rounded-xl border border-border/50 overflow-hidden
+           transition-all duration-300 ease-out
+           hover:shadow-lg hover:shadow-black/5 hover:-translate-y-1;
+  }
+
+  .product-card-image {
+    @apply relative aspect-square overflow-hidden bg-muted/30;
+  }
+
+  .product-card-body {
+    @apply p-4 space-y-2;
+  }
+
+  /* ── Badge styles ── */
+  .badge-discount {
+    @apply absolute top-3 left-3 bg-destructive text-white text-xs font-bold
+           px-2.5 py-1 rounded-full z-10;
+  }
+
+  .badge-new {
+    @apply absolute top-3 right-3 bg-accent text-white text-xs font-bold
+           px-2.5 py-1 rounded-full z-10;
+  }
+
+  .badge-flash {
+    @apply bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold
+           px-3 py-1 rounded-full;
+  }
+
+  /* ── CTA Button ── */
+  .btn-cta {
+    @apply bg-accent text-white font-semibold px-6 py-3 rounded-lg
+           transition-all duration-200
+           hover:bg-orange-600 hover:shadow-lg hover:shadow-orange-500/25
+           active:scale-[0.98];
+  }
+
+  .btn-cta-outline {
+    @apply border-2 border-accent text-accent font-semibold px-6 py-3 rounded-lg
+           transition-all duration-200
+           hover:bg-accent hover:text-white;
+  }
+
+  /* ── Announcement Bar ── */
+  .announcement-bar {
+    @apply bg-primary text-primary-foreground text-xs md:text-sm py-2;
+  }
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-12px); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes marquee {
+  0%   { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.85; }
+}
+
+@keyframes countdown-tick {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.animate-fade-in-up { animation: fade-in-up 0.6s ease-out both; }
+.animate-fade-in    { animation: fade-in 0.5s ease-out both; }
+.animate-slide-up   { animation: slide-up 0.6s ease-out both; }
+.animate-slide-down { animation: slide-down 0.4s ease-out both; }
+.animate-scale-in   { animation: scale-in 0.3s ease-out both; }
+.animate-float      { animation: float 6s ease-in-out infinite; }
+.animate-marquee    { animation: marquee 30s linear infinite; }
+.animate-marquee:hover { animation-play-state: paused; }
+.animate-pulse-subtle  { animation: pulse-subtle 3s ease-in-out infinite; }
+.animate-countdown     { animation: countdown-tick 1s ease-in-out infinite; }
+
+/* Staggered children animation */
+.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.10s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.20s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.30s; }
+
+/* ========================================
+   RESPONSIVE
+   ======================================== */
+
+@media (max-width: 640px) {
+  html { font-size: 14px; }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  html { font-size: 15px; }
+}
+
+@media (min-width: 1025px) {
+  html { font-size: 16px; }
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up, .animate-fade-in, .animate-slide-up,
+  .animate-slide-down, .animate-scale-in, .animate-float,
+  .animate-marquee, .animate-pulse-subtle, .animate-countdown,
+  .transition-all, .transition-colors {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* ── Focus visible ── */
+.focus-visible:focus-visible {
+  outline: 2px solid hsl(24 94% 53%);
+  outline-offset: 2px;
+}
+
+/* ── Safe area ── */
+@supports (padding: max(0px)) {
+  .safe-area-inset-top    { padding-top:    max(1rem, env(safe-area-inset-top)); }
+  .safe-area-inset-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+}
+
+/* ── Custom scrollbar ── */
+.custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(24 94% 53% / 0.4);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(24 94% 53% / 0.7);
+}
+
+/* ── Print ── */
+@media print {
+  .sticky, .fixed { position: static !important; }
+  .no-print { display: none !important; }
+}

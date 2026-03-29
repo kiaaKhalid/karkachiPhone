@@ -1,0 +1,297 @@
+"use client"
+
+import type React from "react";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { Eye, EyeOff, Mail, Lock, Chrome } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+
+const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [isRedirecting, setIsRedirecting] = useState(false); // Anti-loop
+
+  const { login: userLogin, isAuthenticated: isUserAuthenticated, user: regularUser, recheckSession } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
+
+  const redirectTo = searchParams.get("redirect") || "/";
+
+  useEffect(() => {
+    const handleRedirect = async () => {
+      if (isUserAuthenticated && regularUser && !isRedirecting) {
+        console.log("Starting redirect for user:", regularUser.role); // Debug
+        setIsRedirecting(true); // Bloque loop
+        try {
+          await recheckSession(); // Force re-valide session
+          const targetUrl = ["admin", "super_admin"].includes(regularUser.role) ? "/admin" : redirectTo;
+          console.log("Redirecting to:", targetUrl); // Debug
+          router.replace(targetUrl);
+        } catch (err) {
+          console.error("Redirect failed:", err);
+          setIsRedirecting(false);
+        }
+      }
+    };
+
+    handleRedirect();
+  }, [isUserAuthenticated, regularUser, router, redirectTo, isRedirecting, recheckSession]);
+
+  const syncLocalCartToServer = async () => {
+    try {
+      const localCartStr = localStorage.getItem("cart");
+      if (!localCartStr) return;
+
+      const localCart = JSON.parse(localCartStr);
+      if (!Array.isArray(localCart) || localCart.length === 0) {
+        localStorage.removeItem("cart");
+        return;
+      }
+
+      const items = localCart.map((item: any) => ({
+        productId: item.id,
+        quantity: item.quantity,
+      }));
+
+      const token = localStorage.getItem("auth_token");
+      if (!token) throw new Error("Token manquant");
+
+      const response = await fetch(`${apiUrl}/person/cart/items/all`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ items }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la synchronisation du panier");
+      }
+
+      // Efface le panier local une fois synchronisé
+      localStorage.removeItem("cart");
+      toast({
+        title: "Panier synchronisé",
+        description: "Vos articles locaux ont été ajoutés au panier serveur.",
+      });
+    } catch (err: any) {
+      console.error("Erreur synchronisation panier:", err);
+      toast({
+        title: "Erreur synchronisation",
+        description: "Impossible de synchroniser le panier local.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const userResult = await userLogin(email, password);
+
+      if (userResult.success && userResult.user) {
+        // Synchronise le panier local vers le serveur après login réussi
+        await syncLocalCartToServer();
+
+        toast({
+          title: "Connexion réussie !",
+          description: `Bienvenue, ${userResult.user.name} !`,
+        });
+        const targetUrl = ["admin", "super_admin"].includes(userResult.user.role) ? "/admin" : redirectTo;
+        router.replace(targetUrl);
+        return;
+      }
+
+      // Message statique simple pour toutes les erreurs d'auth
+      setError("Identifiants incorrects");
+    } catch (err) {
+      console.error("Erreur de connexion :", err);
+      // Message statique simple pour les erreurs inattendues
+      setError("Une erreur inattendue est survenue");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSocialLogin = (provider: string) => {
+    if (provider === "Google") {
+      window.location.href = `${apiUrl}/auth/google`;
+      return;
+    }
+    toast({
+      title: "Bientôt disponible",
+      description: `La connexion via ${provider} sera bientôt disponible !`,
+    });
+  };
+
+  if (isUserAuthenticated && !isRedirecting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">Redirection en cours...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-[calc(100dvh-112px)] md:min-h-[calc(100dvh-64px)] flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+      <div className="w-full max-w-md">
+        <Card className="backdrop-blur-sm bg-white/80 dark:bg-gray-900/80 border border-gray-200/50 dark:border-gray-700/50 shadow-2xl">
+          <CardHeader className="space-y-1 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="h-12 w-12 bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Lock className="h-6 w-6 text-white" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl font-bold bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent">
+              Bienvenue
+            </CardTitle>
+            <CardDescription className="text-gray-600 dark:text-gray-400">
+              Connectez-vous pour continuer
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleSocialLogin("Google")}
+              className="w-full bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              disabled={isLoading}
+            >
+              <Image
+                src="/google.png" // Ensure this Google logo image exists in the public directory
+                alt="Google Logo"
+                width={20}
+                height={20}
+                className="object-contain mr-2"
+              />
+              <span className="text-gray-700 dark:text-gray-300">Continuer avec Google</span>
+            </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white dark:bg-gray-900 px-2 text-gray-500 dark:text-gray-400">
+                  Ou continuer avec
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Entrez votre email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Mot de passe</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Entrez votre mot de passe"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10 pr-10"
+                    required
+                    disabled={isLoading}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowPassword(!showPassword)}
+                    disabled={isLoading}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4 text-gray-400" /> : <Eye className="h-4 w-4 text-gray-400" />}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-sm text-orange-600 hover:text-orange-500 dark:text-orange-400 dark:hover:text-orange-300 transition-colors"
+                >
+                  Mot de passe oublié ?
+                </Link>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md hover:shadow-lg transition-all"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Connexion...</span>
+                  </div>
+                ) : (
+                  "Se connecter"
+                )}
+              </Button>
+            </form>
+
+          </CardContent>
+
+          <CardFooter className="flex flex-col space-y-2">
+            <div className="text-sm text-center text-gray-600 dark:text-gray-400">
+              Vous n'avez pas de compte ?{" "}
+              <Link
+                href="/auth/register"
+                className="text-orange-600 hover:text-orange-500 dark:text-orange-400 dark:hover:text-orange-300 font-medium transition-colors"
+              >
+                Inscrivez-vous
+              </Link>
+            </div>
+          </CardFooter>
+        </Card>
+      </div>
+    </div>
+  );
+}
