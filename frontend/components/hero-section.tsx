@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { ArrowRight, Star, Truck, Shield, Headphones } from "lucide-react"
 
 const API = process.env.NEXT_PUBLIC_API_URL
@@ -89,10 +90,13 @@ export default function HeroSection() {
 
                 {/* Floating Product Image OVER the circles */}
                 <div className="absolute inset-0 flex items-center justify-center -right-10">
-                  <img 
+                  <Image 
                     src="https://images.unsplash.com/photo-1695048133142-1a20484d2569?q=80&w=600&auto=format&fit=crop" 
                     alt="iPhone 15 Pro Max" 
+                    width={256}
+                    height={256}
                     className="w-56 md:w-64 object-contain drop-shadow-2xl transform rotate-12 hover:rotate-6 transition-all duration-500 hover:scale-105 cursor-pointer"
+                    priority
                   />
                 </div>
               </div>

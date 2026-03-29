@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Skeleton } from "@/components/ui/skeleton"
+import Image from "next/image"
 
 const API = process.env.NEXT_PUBLIC_API_URL
 
@@ -54,7 +55,7 @@ export default function PromotionalBannerSection() {
               </div>
               {bigBanners[0].image && (
                 <div className="absolute right-4 bottom-4 md:right-8 md:bottom-0 w-40 md:w-56 opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500">
-                  <img src={bigBanners[0].image} alt="" className="w-full h-auto object-contain" />
+                  <Image src={bigBanners[0].image} alt="" width={224} height={224} className="w-full h-auto object-contain" />
                 </div>
               )}
             </div>
@@ -82,11 +83,14 @@ export default function PromotionalBannerSection() {
                     </p>
                   </div>
                   {item.image && (
-                    <img
-                      src={item.image}
-                      alt=""
-                      className="absolute right-3 bottom-0 w-24 h-24 object-contain opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300 transform translate-x-2"
-                    />
+                    <div className="absolute right-3 bottom-0 w-24 h-24 opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300 transform translate-x-2">
+                      <Image
+                        src={item.image}
+                        alt=""
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
                   )}
                 </Link>
               ))

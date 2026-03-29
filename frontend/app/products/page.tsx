@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import ProductCard from "@/components/product-card"
 import FullscreenProductCard from "@/components/fullscreen-product-card"
 import FullscreenCarousel from "@/components/fullscreen-carousel"
+import Image from "next/image"
 import { ProductCardSkeleton } from "@/components/product-card-skeleton"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -42,7 +43,6 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   
-  // View Mode: grid or fullscreen swipe
   const [viewMode, setViewMode] = useState<'grid' | 'fullscreen'>('grid')
 
   useEffect(() => {
@@ -54,14 +54,12 @@ export default function ProductsPage() {
     return () => { document.body.style.overflowY = '' }
   }, [viewMode])
 
-  // States for Filters
   const [categories, setCategories] = useState<{ id: string, name: string }[]>([])
   const [brands, setBrands] = useState<{ id: string, name: string }[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [selectedBrand, setSelectedBrand] = useState<string>("all")
   const [priceRange, setPriceRange] = useState<number[]>([0, 50000])
 
-  // Fetch Lookups (Categories & Brands)
   const fetchLookups = async () => {
     try {
       const [catRes, brandRes] = await Promise.all([
@@ -83,7 +81,6 @@ export default function ProductsPage() {
     }
   }
 
-  // Fetch Products with filters
   const fetchProducts = async (page: number, query: string = "") => {
     try {
       setLoading(true)
@@ -100,7 +97,6 @@ export default function ProductsPage() {
         params.append("page", page.toString())
         params.append("limit", productsPerPage.toString())
 
-        // Append Filters
         if (selectedCategory !== "all") params.append("categoryId", selectedCategory)
         if (selectedBrand !== "all") params.append("brandId", selectedBrand)
         if (priceRange[0] > 0) params.append("priceMin", priceRange[0].toString())
@@ -133,28 +129,28 @@ export default function ProductsPage() {
         }
       }
 
-        const normalizedProducts: Product[] = items.map((item: any) => {
-          const price = parseFloat(item.price) || 0
-          const originalPrice = item.originalPrice ? parseFloat(item.originalPrice) : undefined
-          const savePercentage = originalPrice ? Math.round(((originalPrice - price) / originalPrice) * 100) : undefined
-          return {
-            id: item.id?.toString() || item.id || "",
-            name: item.name || "",
-            description: item.description || "",
-            price,
-            comparePrice: originalPrice,
-            savePrice: savePercentage ? savePercentage.toString() : undefined,
-            brand: item.brand ? { name: item.brand.name || "" } : undefined,
-            category: item.categoryId || null,
-            stock: item.stock ?? 0,
-            rating: parseFloat(item.rating) || 0,
-            reviewCount: item.reviewsCount || item.reviewCount || 0,
-            image: item.image || null,
-            isOnPromotion: item.isFlashDeal || item.isPromotional || !!originalPrice || false,
-            promotionEndDate: item.flashEndsAt || null,
-            specs: item.specs?.map((s: any) => ({ key: s.key || "", value: s.value })) || []
-          } as any
-        })
+      const normalizedProducts: Product[] = items.map((item: any) => {
+        const price = parseFloat(item.price) || 0
+        const originalPrice = item.originalPrice ? parseFloat(item.originalPrice) : undefined
+        const savePercentage = originalPrice ? Math.round(((originalPrice - price) / originalPrice) * 100) : undefined
+        return {
+          id: item.id?.toString() || item.id || "",
+          name: item.name || "",
+          description: item.description || "",
+          price,
+          comparePrice: originalPrice,
+          savePrice: savePercentage ? savePercentage.toString() : undefined,
+          brand: item.brand ? { name: item.brand.name || "" } : undefined,
+          category: item.categoryId || null,
+          stock: item.stock ?? 0,
+          rating: parseFloat(item.rating) || 0,
+          reviewCount: item.reviewsCount || item.reviewCount || 0,
+          image: item.image || null,
+          isOnPromotion: item.isFlashDeal || item.isPromotional || !!originalPrice || false,
+          promotionEndDate: item.flashEndsAt || null,
+          specs: item.specs?.map((s: any) => ({ key: s.key || "", value: s.value })) || []
+        } as any
+      })
 
       setProducts(normalizedProducts)
       setTotalResults(total)
@@ -197,14 +193,15 @@ export default function ProductsPage() {
   const goToPage = (page: number) => {
     if (page < 1 || page > totalPages) return
     setCurrentPage(page)
-    window.scrollTo({ top: 0, behavior: "smooth" })
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    }
   }
 
   const goToPrevious = () => currentPage > 1 && goToPage(currentPage - 1)
   const goToNext = () => currentPage < totalPages && goToPage(currentPage + 1)
   const handleRetry = () => fetchProducts(currentPage, searchQuery)
 
-  // Sub-component for filter widgets
   const FilterWidgets = () => (
     <Accordion type="multiple" defaultValue={["categories", "brands", "price"]} className="space-y-4">
       <AccordionItem value="categories">
@@ -264,16 +261,19 @@ export default function ProductsPage() {
   )
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-row justify-between items-center gap-4 mb-8">
-          <h1 className="text-2xl md:text-4xl font-bold text-foreground flex items-center gap-2">
-            Notre Catalogue
-            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse hidden sm:inline-block" />
-          </h1>
+    <div className="min-h-screen bg-background pt-4 pb-20">
+      <div className="section-container py-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+          <div className="space-y-1">
+            <h1 className="text-3xl md:text-5xl font-black text-foreground tracking-tight">
+              Catalogue <span className="text-accent">Premium</span>
+            </h1>
+            <p className="text-muted-foreground text-sm md:text-base font-medium">
+              Découvrez notre sélection exclusive de technologies haut de gamme.
+            </p>
+          </div>
           
-          <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-1">
-            {/* View Mode Toggle (Mobile only) */}
+          <div className="flex items-center gap-3 w-full md:w-auto">
             <div className="flex bg-secondary/80 backdrop-blur-sm rounded-xl p-0.5 md:hidden border border-border/40">
               <Button 
                 variant="ghost" 
@@ -293,7 +293,6 @@ export default function ProductsPage() {
               </Button>
             </div>
 
-            {/* Mobile Drawer Filter */}
             <div className="md:hidden">
               <Drawer>
                 <DrawerTrigger asChild>
@@ -316,13 +315,11 @@ export default function ProductsPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {/* Desktop Sidebar Filters */}
           <aside className="hidden md:block col-span-1 border-r pr-6 sticky top-24 self-start max-h-[calc(100vh-120px)] overflow-y-auto">
             <h2 className="text-lg font-bold mb-4">Filtrer par</h2>
             <FilterWidgets />
           </aside>
 
-          {/* Main Products Grid */}
           <main className="col-span-1 md:col-span-3">
             {loading ? (
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
@@ -339,35 +336,23 @@ export default function ProductsPage() {
               <>
                 {viewMode === 'fullscreen' ? (
                   <FullscreenCarousel>
-                    {products.map((product) => {
-                      const mappedProduct = {
-                        ...product,
-                        brand: typeof product.brand === 'string' ? { name: product.brand } : product.brand
-                      };
-                      return <FullscreenProductCard key={product.id} product={mappedProduct as any} />;
-                    })}
+                    {products.map((product) => (
+                      <FullscreenProductCard key={product.id} product={product as any} />
+                    ))}
                   </FullscreenCarousel>
                 ) : (
-                  /* Standard Grid View */
                   <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                    {products.map((product) => {
-                      const mappedProduct = {
-                        ...product,
-                        brand: typeof product.brand === 'string' ? { name: product.brand } : product.brand
-                      };
-                      return (
-                        <ProductCard 
-                          key={product.id} 
-                          product={mappedProduct as any} 
-                          isInWishlist={isInWishlist(product.id)}
-                          onToggleWishlist={() => isInWishlist(product.id) ? removeFromWishlist(product.id) : addToWishlist(product)}
-                        />
-                      );
-                    })}
+                    {products.map((product) => (
+                      <ProductCard 
+                        key={product.id} 
+                        product={product as any} 
+                        isInWishlist={isInWishlist(product.id)}
+                        onToggleWishlist={() => isInWishlist(product.id) ? removeFromWishlist(product.id) : addToWishlist(product)}
+                      />
+                    ))}
                   </div>
                 )}
 
-                {/* Pagination (Hidden on mobile fullscreen for better UX if needed, or kept) */}
                 {(!viewMode || viewMode === 'grid') && totalPages > 1 && (
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-12 pt-8 border-t">
                     <div className="text-sm text-muted-foreground">

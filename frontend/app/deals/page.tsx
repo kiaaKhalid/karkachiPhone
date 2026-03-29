@@ -2,24 +2,12 @@
 
 import { useState, useEffect } from "react"
 import ProductCard from "@/components/product-card"
-import type { Product } from "@/lib/types"
-import { Card } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+import { ProductCardSkeleton } from "@/components/product-card-skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Zap } from "lucide-react"
 import { useWishlist } from "@/hooks/use-wishlist"
-
-interface DealsResponse {
-  success: boolean
-  message: string
-  data: {
-    items: Deal[]
-    total: number
-    page: number
-    limit: number
-  }
-}
+import type { Product } from "@/lib/types"
 
 interface Deal {
   id: string
@@ -41,46 +29,6 @@ interface Deal {
   brandId: string
 }
 
-function ProductSkeleton() {
-  return (
-    <Card className="overflow-hidden">
-      <Skeleton className="h-48 w-full" />
-      <div className="p-4 space-y-3">
-        <Skeleton className="h-4 w-3/4" />
-        <Skeleton className="h-3 w-1/2" />
-        <div className="flex justify-between items-center">
-          <Skeleton className="h-6 w-20" />
-          <Skeleton className="h-4 w-16" />
-        </div>
-        <Skeleton className="h-9 w-full" />
-      </div>
-    </Card>
-  )
-}
-
-function ErrorSkeleton() {
-  return (
-    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-      {Array.from({ length: 8 }).map((_, index) => (
-        <Card key={index} className="overflow-hidden opacity-50">
-          <div className="h-48 w-full bg-gray-200 flex items-center justify-center">
-            <AlertCircle className="h-8 w-8 text-gray-400" />
-          </div>
-          <div className="p-4 space-y-3">
-            <div className="h-4 bg-gray-200 rounded w-3/4" />
-            <div className="h-3 bg-gray-200 rounded w-1/2" />
-            <div className="flex justify-between items-center">
-              <div className="h-6 bg-gray-200 rounded w-20" />
-              <div className="h-4 bg-gray-200 rounded w-16" />
-            </div>
-            <div className="h-9 bg-gray-200 rounded w-full" />
-          </div>
-        </Card>
-      ))}
-    </div>
-  )
-}
-
 export default function DealsPage() {
   const [deals, setDeals] = useState<Deal[]>([])
   const [loading, setLoading] = useState(true)
@@ -89,35 +37,18 @@ export default function DealsPage() {
   const [totalPages, setTotalPages] = useState(0)
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist()
 
-  const fetchDeals = async (pageNum = 1, categoryId?: string, brandId?: string) => {
+  const fetchDeals = async (pageNum = 1) => {
     try {
       setLoading(true)
       setError(null)
-
-      const params = new URLSearchParams({
-        page: pageNum.toString(),
-        limit: "30",
-      })
-
-      if (categoryId) params.append("categoryId", categoryId)
-      if (brandId) params.append("brandId", brandId)
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/public/products/deals?${params}`)
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data: DealsResponse = await response.json()
-      if (!data.success) {
-        throw new Error(data.message || "Failed to fetch deals")
-      }
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/public/products/deals?page=${pageNum}&limit=12`)
+      if (!res.ok) throw new Error("Erreur de chargement")
+      const data = await res.json()
       setDeals(data.data.items)
       setTotalPages(Math.ceil(data.data.total / data.data.limit))
       setPage(data.data.page - 1)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch deals")
-      console.error("Error fetching deals:", err)
+      setError(err instanceof Error ? err.message : "Une erreur est survenue")
     } finally {
       setLoading(false)
     }
@@ -127,146 +58,117 @@ export default function DealsPage() {
     fetchDeals()
   }, [])
 
-  const handlePreviousPage = () => {
-    if (page > 0) {
-      const newPage = page - 1
-      setPage(newPage)
-      fetchDeals(newPage + 1)
-    }
-  }
-
-  const handleNextPage = () => {
-    if (page < totalPages - 1) {
-      const newPage = page + 1
-      setPage(newPage)
-      fetchDeals(newPage + 1)
-    }
-  }
-
-  const handlePageClick = (pageNum: number) => {
-    setPage(pageNum)
-    fetchDeals(pageNum + 1)
-  }
-
-  const convertDealToProduct = (deal: Deal) => {
-    const currentPrice = parseFloat(deal.flashPrice || deal.price)
-    const originalPriceNum = parseFloat(deal.originalPrice)
-    const savings = originalPriceNum - currentPrice
-    return {
-      id: deal.id,
-      name: deal.name,
-      brand: { name: "" }, // Match ProductCard Prop shape
-      category: "",
-      price: currentPrice,
-      originalPrice: originalPriceNum,
-      image: deal.image,
-      rating: parseFloat(deal.rating),
-      reviewsCount: deal.reviewsCount,
-      stock: deal.flashStock !== null ? deal.flashStock : deal.stock,
-      description: deal.description,
-      discount: deal.discount !== null ? deal.discount : undefined,
-      isFlashDeal: deal.isFlashDeal,
-      flashPrice: deal.flashPrice ? parseFloat(deal.flashPrice) : null,
-    }
-  }
+  const convertToProduct = (deal: Deal): Product => ({
+    id: deal.id,
+    name: deal.name,
+    brand: { name: "" },
+    category: "",
+    price: parseFloat(deal.flashPrice || deal.price),
+    originalPrice: parseFloat(deal.originalPrice),
+    image: deal.image,
+    rating: parseFloat(deal.rating),
+    reviewsCount: deal.reviewsCount,
+    stock: deal.flashStock !== null ? deal.flashStock : deal.stock,
+    description: deal.description,
+    discount: deal.discount !== null ? deal.discount : undefined,
+    isFlashDeal: deal.isFlashDeal,
+    flashPrice: deal.flashPrice ? parseFloat(deal.flashPrice) : null,
+  })
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">Meilleures offres du jour</h1>
-
-      {loading ? (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {Array.from({ length: 12 }).map((_, index) => (
-            <ProductSkeleton key={index} />
-          ))}
-        </div>
-      ) : error ? (
-        <ErrorSkeleton />
-      ) : (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {deals.map((deal) => {
-            const product = convertDealToProduct(deal);
-            const stringId = deal.id?.toString() || deal.id || "";
-            return (
-              <ProductCard 
-                key={stringId} 
-                product={product} 
-                isInWishlist={isInWishlist(stringId)}
-                onToggleWishlist={() => 
-                  isInWishlist(stringId) 
-                    ? removeFromWishlist(stringId) 
-                    : addToWishlist({ ...product, id: stringId } as any)
-                }
-              />
-            );
-          })}
-        </div>
-      )}
-
-      {!loading && !error && deals.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">Aucune offre disponible pour le moment.</p>
-        </div>
-      )}
-
-      {!loading && !error && totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-8">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePreviousPage}
-            disabled={page === 0}
-            className="flex items-center gap-1 bg-transparent"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Précédent
-          </Button>
-
-          <div className="flex items-center gap-1">
-            {Array.from({ length: Math.min(totalPages, 5) }, (_, index) => {
-              let pageNum = index
-              if (totalPages > 5) {
-                if (page < 3) {
-                  pageNum = index
-                } else if (page >= totalPages - 3) {
-                  pageNum = totalPages - 5 + index
-                } else {
-                  pageNum = page - 2 + index
-                }
-              }
-
-              return (
-                <Button
-                  key={pageNum}
-                  variant={page === pageNum ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handlePageClick(pageNum)}
-                  className="min-w-[40px]"
-                >
-                  {pageNum + 1}
-                </Button>
-              )
-            })}
+    <div className="min-h-screen bg-background pt-4 text-foreground font-inter">
+      <div className="section-container py-8 md:py-12">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 text-accent text-xs font-bold uppercase tracking-wider">
+              <Zap className="w-3 h-3 fill-current" />
+              Offres Limitées
+            </div>
+            <h1 className="text-3xl md:text-5xl font-black tracking-tight">
+              Meilleures <span className="text-accent">Offres</span> du Jour
+            </h1>
+            <p className="text-muted-foreground font-medium max-w-xl">
+              Des réductions exceptionnelles sur une sélection de produits premium. Profitez-en avant l&apos;expiration.
+            </p>
           </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleNextPage}
-            disabled={page >= totalPages - 1}
-            className="flex items-center gap-1"
-          >
-            Suivant
-            <ChevronRight className="h-4 w-4" />
-          </Button>
         </div>
-      )}
 
-      {!loading && !error && totalPages > 0 && (
-        <div className="text-center mt-4 text-sm text-gray-600">
-          Page {page + 1} of {totalPages}
-        </div>
-      )}
+        {error && (
+          <Alert variant="destructive" className="mb-8 rounded-2xl">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {loading ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <ProductCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : deals.length > 0 ? (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+              {deals.map((deal) => {
+                const product = convertToProduct(deal)
+                const sId = deal.id.toString()
+                return (
+                  <ProductCard
+                    key={sId}
+                    product={product as any}
+                    isInWishlist={isInWishlist(sId)}
+                    onToggleWishlist={() => 
+                      isInWishlist(sId) ? removeFromWishlist(sId) : addToWishlist({ ...product, id: sId } as any)
+                    }
+                  />
+                )
+              })}
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-4 py-8 border-t border-border/40">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => fetchDeals(page)}
+                  disabled={page === 0}
+                  className="rounded-xl border-border/40 hover:bg-secondary transition-all"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => fetchDeals(i + 1)}
+                      className={`w-10 h-10 rounded-xl text-sm font-bold transition-all ${
+                        page === i 
+                          ? "bg-accent text-white shadow-lg shadow-accent/20" 
+                          : "bg-secondary/50 text-muted-foreground hover:bg-secondary border border-transparent hover:border-border/40"
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => fetchDeals(page + 2)}
+                  disabled={page >= totalPages - 1}
+                  className="rounded-xl border-border/40 hover:bg-secondary transition-all"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </Button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center py-24 bg-secondary/30 rounded-[3rem] border border-dashed border-border/60">
+            <Zap className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
+            <p className="text-muted-foreground font-medium">Aucune offre flash disponible pour le moment.</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -14,7 +14,7 @@
 @layer base {
   :root {
     /* ── Core ── */
-    --background: 0 0% 100%;
+    --background: 30 40% 98.5%;      /* Premium Ivory #FCF8F4ish */
     --foreground: 222 47% 11%;
 
     /* ── Cards / Surfaces ── */

@@ -1,222 +1,193 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Globe, Users, Lightbulb, ExternalLink, Github, Linkedin } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Globe, Users, Lightbulb, ExternalLink, Github, Linkedin, Smartphone, ShieldCheck, Heart } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 
 export default function AboutPage() {
   return (
-    <div className="container mx-auto px-4 py-8 md:py-12 lg:py-16">
-      <section className="text-center mb-12">
-        <h1 className="text-5xl font-extrabold text-gray-900 dark:text-gray-100 mb-4">À Propos de Nous</h1>
-        <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-          Chez KARKACHI PHONE, nous sommes passionnés par la connexion avec les dernières et meilleures
-          technologies mobiles. Notre mission est de fournir une expérience d&apos;achat fluide, offrant une large sélection
-          de produits, des prix compétitifs et un service client exceptionnel.
-        </p>
-      </section>
-
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-        <Card className="text-center p-6 bg-white dark:bg-gray-800 shadow-lg">
-          <CardHeader className="flex flex-col items-center">
-            <Globe className="h-12 w-12 text-blue-500 mb-4" />
-            <CardTitle className="text-2xl font-bold text-gray-900 dark:text-gray-100">Notre Vision</CardTitle>
-          </CardHeader>
-          <CardContent className="text-gray-700 dark:text-gray-300">
-            Être la destination en ligne leader pour la technologie mobile, permettant aux individus d&apos;accéder à des
-            appareils innovants qui améliorent leur vie quotidienne.
-          </CardContent>
-        </Card>
-        <Card className="text-center p-6 bg-white dark:bg-gray-800 shadow-lg">
-          <CardHeader className="flex flex-col items-center">
-            <Lightbulb className="h-12 w-12 text-green-500 mb-4" />
-            <CardTitle className="text-2xl font-bold text-gray-900 dark:text-gray-100">Notre Mission</CardTitle>
-          </CardHeader>
-          <CardContent className="text-gray-700 dark:text-gray-300">
-            Fournir une gamme diversifiée de téléphones mobiles et d&apos;accessoires de haute qualité, couplée à une
-            expérience d&apos;achat intuitive et un support client inégalé.
-          </CardContent>
-        </Card>
-        <Card className="text-center p-6 bg-white dark:bg-gray-800 shadow-lg">
-          <CardHeader className="flex flex-col items-center">
-            <Users className="h-12 w-12 text-purple-500 mb-4" />
-            <CardTitle className="text-2xl font-bold text-gray-900 dark:text-gray-100">Nos Valeurs</CardTitle>
-          </CardHeader>
-          <CardContent className="text-gray-700 dark:text-gray-300">
-            La satisfaction client, l&apos;innovation, l&apos;intégrité et un engagement envers l&apos;excellence guident tout ce que
-            nous faisons.
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="mb-12">
-        <h2 className="text-4xl font-bold text-center text-gray-900 dark:text-gray-100 mb-8">Notre Histoire</h2>
-        <div className="max-w-4xl mx-auto text-lg text-gray-700 dark:text-gray-300 space-y-6">
-          <p>
-            Fondé en 2020, KARKACHI PHONE a commencé avec une idée simple : rendre la technologie mobile de
-            pointe accessible à tous. Ce qui a commencé comme une petite entreprise en ligne s&apos;est développé en une
-            plateforme de confiance, servant des milliers de clients satisfaits à travers le monde.
+    <div className="min-h-screen bg-background pt-4 font-inter text-foreground">
+      <div className="section-container py-8 md:py-16">
+        {/* Hero Section */}
+        <section className="text-center mb-20 max-w-4xl mx-auto px-4">
+          <span className="inline-block px-4 py-1.5 rounded-full bg-accent/10 text-accent text-xs font-bold uppercase tracking-wider mb-6">
+            Notre Histoire
+          </span>
+          <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-8">
+            Passionnés par la <span className="text-accent">Technologie</span> Mobile
+          </h1>
+          <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
+            Chez <span className="font-bold text-foreground">KARKACHI PHONE</span>, nous sommes passionnés par la connexion avec les dernières et meilleures
+            de produits, des prix compétitifs et un service client exceptionnel depuis 2009.
           </p>
-          <p>
-            Nous croyons qu&apos;un téléphone mobile est plus qu&apos;un simple appareil ; c&apos;est une passerelle vers la connexion,
-            la créativité et la productivité. C&apos;est pourquoi nous sélectionnons méticuleusement notre sélection, en
-            partenariat avec des marques leaders pour vous apporter le meilleur en smartphones, tablettes, montres
-            connectées et accessoires.
-          </p>
-          <p>
-            Notre équipe est composée d&apos;enthousiastes de la technologie et d&apos;experts du service client dédiés à
-            s&apos;assurer que votre parcours avec nous soit fluide et agréable. De la navigation au checkout, et au-delà,
-            nous sommes là pour vous soutenir à chaque étape.
-          </p>
-        </div>
-      </section>
-      {/* Section Développeurs */}
-      <section className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-900 rounded-lg p-8 mb-12">
-        <h2 className="text-4xl font-bold text-center text-gray-900 dark:text-gray-100 mb-4">
-          Développé par des Experts
-        </h2>
-        <p className="text-center text-gray-600 dark:text-gray-400 mb-12 max-w-2xl mx-auto">
-          Ce site e-commerce a été conçu et développé par une équipe de développeurs passionnés, spécialisés dans les
-          technologies web modernes.
-        </p>
+        </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {/* Développeur 1 */}
-          <Card className="bg-white dark:bg-gray-800 shadow-xl hover:shadow-2xl transition-shadow duration-300">
-            <CardContent className="p-8">
+        {/* Vision/Mission Grid */}
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-24 pr-4 pl-4">
+          <div className="p-8 rounded-[2rem] bg-secondary/50 border border-border/40 hover:border-accent/20 transition-all group">
+            <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center text-accent mb-6 group-hover:scale-110 transition-transform">
+              <Globe className="h-7 w-7" />
+            </div>
+            <h3 className="text-2xl font-bold mb-4">Notre Vision</h3>
+            <p className="text-muted-foreground leading-relaxed">
+              Être la destination en ligne leader pour la technologie mobile au Maroc, permettant à tous d&apos;accéder à des
+              appareils innovants qui améliorent leur vie quotidienne.
+            </p>
+          </div>
+          
+          <div className="p-8 rounded-[2rem] bg-secondary/50 border border-border/40 hover:border-accent/20 transition-all group">
+            <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center text-accent mb-6 group-hover:scale-110 transition-transform">
+              <Lightbulb className="h-7 w-7" />
+            </div>
+            <h3 className="text-2xl font-bold mb-4">Notre Mission</h3>
+            <p className="text-muted-foreground leading-relaxed">
+              Fournir une gamme diversifiée de téléphones et d&apos;accessoires de haute qualité, couplée à une
+              expérience d&apos;achat intuitive et un support client inégalé.
+            </p>
+          </div>
+
+          <div className="p-8 rounded-[2rem] bg-secondary/50 border border-border/40 hover:border-accent/20 transition-all group">
+            <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center text-accent mb-6 group-hover:scale-110 transition-transform">
+              <Heart className="h-7 w-7" />
+            </div>
+            <h3 className="text-2xl font-bold mb-4">Nos Valeurs</h3>
+            <p className="text-muted-foreground leading-relaxed">
+              La satisfaction client, l&apos;innovation, l&apos;intégrité et un engagement constant envers l&apos;excellence guident chacune de nos décisions.
+            </p>
+          </div>
+        </section>
+
+        {/* Story Section */}
+        <section className="bg-secondary/30 rounded-[3rem] p-8 md:p-16 mb-24 border border-border/40">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div className="space-y-6">
+              <h2 className="text-3xl md:text-4xl font-black mb-6">Un Voyage vers l&apos;Innovation</h2>
+              <div className="space-y-4 text-muted-foreground text-lg leading-relaxed">
+                <p>
+                  Ce qui a commencé comme une petite entreprise passionnée en 2009 s&apos;est développé en une plateforme de confiance, servant des milliers de clients satisfaits.
+                </p>
+                <p>
+                  Nous croyons qu&apos;un téléphone mobile est plus qu&apos;un simple appareil ; c&apos;est une passerelle vers la connexion, la créativité et la productivité. C&apos;est pourquoi nous sélectionnons méticuleusement chaque produit.
+                </p>
+              </div>
+              <div className="flex gap-8 pt-4">
+                <div>
+                  <div className="text-3xl font-black text-accent tracking-tighter">15ans+</div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Expertise</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-black text-accent tracking-tighter">10k+</div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Clients</div>
+                </div>
+              </div>
+            </div>
+            <div className="relative aspect-video rounded-3xl overflow-hidden shadow-2xl">
+              <Image 
+                src="https://images.unsplash.com/photo-1556740734-7f9a2b7a0f4?q=80&w=2070&auto=format&fit=crop"
+                alt="Our Workspace"
+                fill
+                className="object-cover"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Team Section */}
+        <section className="mb-12">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-5xl font-black mb-4">L&apos;Équipe de Développement</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto font-medium">
+              Ce projet e-commerce premium a été conçu et développé par une équipe passionnée par l&apos;excellence UI/UX.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 max-w-5xl mx-auto px-4">
+             {/* KIAA Khalid */}
+            <div className="bg-secondary/20 border border-border/40 rounded-[2.5rem] p-8 md:p-10 hover:shadow-xl transition-all group overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-bl-full -mr-10 -mt-10 group-hover:scale-110 transition-transform" />
               <div className="flex flex-col items-center text-center">
-                <Image
-                  src="https://i.ibb.co/gFd7hDDY/khalid-profile-copy.jpg"
-                  alt="KIAA Khalid"
-                  width={120}
-                  height={120}
-                  className="rounded-full mb-6 object-cover border-4 border-blue-500"
-                />
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">KIAA Khalid</h3>
-                <p className="text-blue-600 dark:text-blue-400 font-semibold mb-3">Software Engineer</p>
-                <p className="text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
-                Développeur passionné, spécialisé dans la conception et le développement d&apos;applications robustes et évolutives.
-                Maîtrise des langages modernes (Java, Spring Boot, React, SQL/NoSQL) et des bonnes pratiques (Clean Code, tests, CI/CD)
-                pour livrer des solutions performantes et centrées utilisateur.
+                <div className="relative mb-6">
+                  <div className="absolute inset-0 bg-accent rounded-full blur-xl opacity-20 scale-125" />
+                  <Image
+                    src="https://i.ibb.co/gFd7hDDY/khalid-profile-copy.jpg"
+                    alt="KIAA Khalid"
+                    width={140}
+                    height={140}
+                    className="rounded-full relative object-cover border-4 border-background shadow-lg"
+                  />
+                </div>
+                <h3 className="text-2xl font-bold mb-1">KIAA Khalid</h3>
+                <p className="text-accent font-bold text-sm tracking-widest uppercase mb-4">Software Engineer</p>
+                <p className="text-muted-foreground mb-8 line-clamp-3 text-sm leading-relaxed">
+                  Expert en architecture robuste et développement Full Stack. Maîtrise de Spring Boot, React et des workflows CI/CD pour des solutions évolutives.
                 </p>
 
-                <div className="flex flex-wrap gap-2 mb-6">
-                  <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm">
-                    React
-                  </span>
-                  <span className="px-3 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full text-sm">
-                    Next.js
-                  </span>
-                  <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded-full text-sm">
-                    Spring Boot
-                  </span>
-                  <span className="px-3 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded-full text-sm">
-                    python
-                  </span>
+                <div className="flex flex-wrap justify-center gap-2 mb-8">
+                  {["Spring Boot", "Next.js", "MySQL", "React"].map(skill => (
+                    <span key={skill} className="px-3 py-1 bg-background/50 text-[10px] font-bold uppercase border border-border/40 rounded-full">{skill}</span>
+                  ))}
                 </div>
 
                 <div className="flex gap-4">
-                  <Link
-                    href="https://kiaa-khalid.vercel.app/"
-                    target="_blank"
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Portfolio
-                  </Link>
-                  <Link
-                    href="https://github.com/kiaaKhalid"
-                    target="_blank"
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-lg transition-colors duration-200"
-                  >
-                    <Github className="h-4 w-4" />
-                    GitHub
-                  </Link>
-                  <Link
-                    href="https://www.linkedin.com/in/khalid-kiaa-bitkal/"
-                    target="_blank"
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg transition-colors duration-200"
-                  >
-                    <Linkedin className="h-4 w-4" />
-                    LinkedIn
-                  </Link>
+                  <Link href="https://github.com/kiaaKhalid" target="_blank" className="p-3 rounded-full bg-foreground text-background hover:scale-110 transition-all"><Github className="w-5 h-5" /></Link>
+                  <Link href="https://www.linkedin.com/in/khalid-kiaa-bitkal/" target="_blank" className="p-3 rounded-full bg-[#0077b5] text-white hover:scale-110 transition-all"><Linkedin className="w-5 h-5" /></Link>
+                  <Link href="https://kiaa-khalid.vercel.app/" target="_blank" className="p-3 rounded-full bg-accent text-white hover:scale-110 transition-all"><ExternalLink className="w-5 h-5" /></Link>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Développeur 2 */}
-          <Card className="bg-white dark:bg-gray-800 shadow-xl hover:shadow-2xl transition-shadow duration-300">
-            <CardContent className="p-8">
+            {/* Mohamed Karkachi */}
+            <div className="bg-secondary/20 border border-border/40 rounded-[2.5rem] p-8 md:p-10 hover:shadow-xl transition-all group overflow-hidden relative text-foreground">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-bl-full -mr-10 -mt-10 group-hover:scale-110 transition-transform" />
               <div className="flex flex-col items-center text-center">
-                <Image
-                  src="https://media.licdn.com/dms/image/v2/D4E03AQE6z0oxYmY00w/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1674604440585?e=1758758400&v=beta&t=fktYJbT0mXyYMpeoQngLBzC4crvomloqqc8K-I7y9RE"
-                  alt="Mohamed Karkachi"
-                  width={120}
-                  height={120}
-                  className="rounded-full mb-6 object-cover border-4 border-purple-500"
-                />
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Mohamed Karkachi</h3>
-                <p className="text-purple-600 dark:text-purple-400 font-semibold mb-3">Développeuse Frontend</p>
-                <p className="text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
-                Spécialisée dans la création d&apos;interfaces modernes, réactives et centrées utilisateur. Maîtrise de React, JavaScript/TypeScript 
-                et des bonnes pratiques UI/UX pour concevoir des applications performantes et élégantes, en collaboration étroite avec les équipes backend et design.
+                <div className="relative mb-6">
+                  <div className="absolute inset-0 bg-accent rounded-full blur-xl opacity-20 scale-125" />
+                  <Image
+                    src="https://media.licdn.com/dms/image/v2/D4E03AQE6z0oxYmY00w/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1674604440585?e=1758758400&v=beta&t=fktYJbT0mXyYMpeoQngLBzC4crvomloqqc8K-I7y9RE"
+                    alt="Mohamed Karkachi"
+                    width={140}
+                    height={140}
+                    className="rounded-full relative object-cover border-4 border-background shadow-lg"
+                  />
+                </div>
+                <h3 className="text-2xl font-bold mb-1">Mohamed Karkachi</h3>
+                <p className="text-accent font-bold text-sm tracking-widest uppercase mb-4">Frontend Engineer</p>
+                <p className="text-muted-foreground mb-8 line-clamp-3 text-sm leading-relaxed">
+                  Spécialiste UI/UX et interfaces interactives. Passionné par la création d&apos;expériences utilisateur fluides, élégantes et performantes.
                 </p>
 
-                <div className="flex flex-wrap gap-2 mb-6">
-                  <span className="px-3 py-1 bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-200 rounded-full text-sm">
-                    UI/UX
-                  </span>
-                  <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm">
-                    React
-                  </span>
-                  <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 rounded-full text-sm">
-                    Tailwind CSS
-                  </span>
-                  <span className="px-3 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded-full text-sm">
-                    Figma
-                  </span>
+                <div className="flex flex-wrap justify-center gap-2 mb-8">
+                  {["UI/UX", "Tailwind", "TypeScript", "Figma"].map(skill => (
+                    <span key={skill} className="px-3 py-1 bg-background/50 text-[10px] font-bold uppercase border border-border/40 rounded-full">{skill}</span>
+                  ))}
                 </div>
 
                 <div className="flex gap-4">
-                  <Link
-                    href="https://sarahchen-design.com"
-                    target="_blank"
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors duration-200"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Portfolio
-                  </Link>
-                  <Link
-                    href="https://github.com/MohamedKARKACHI"
-                    target="_blank"
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-lg transition-colors duration-200"
-                  >
-                    <Github className="h-4 w-4" />
-                    GitHub
-                  </Link>
-                  <Link
-                    href="https://www.linkedin.com/in/mohamed-karkachi-894678253/"
-                    target="_blank"
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg transition-colors duration-200"
-                  >
-                    <Linkedin className="h-4 w-4" />
-                    LinkedIn
-                  </Link>
+                  <Link href="https://github.com/MohamedKARKACHI" target="_blank" className="p-3 rounded-full bg-foreground text-background hover:scale-110 transition-all"><Github className="w-5 h-5" /></Link>
+                  <Link href="https://www.linkedin.com/in/mohamed-karkachi-894678253/" target="_blank" className="p-3 rounded-full bg-[#0077b5] text-white hover:scale-110 transition-all"><Linkedin className="w-5 h-5" /></Link>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </div>
+        </section>
 
-        <div className="text-center mt-8">
-          <p className="text-gray-600 dark:text-gray-400">
-            Vous avez un projet de développement web ?
-            <Link href="/contact" className="text-blue-600 dark:text-blue-400 hover:underline ml-1">
-              Contactez notre équipe
+        {/* Call to Action */}
+        <section className="text-center mt-32 py-20 rounded-[3rem] bg-accent text-white relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-64 h-64 bg-white/10 rounded-full -ml-32 -mt-32 blur-3xl" />
+          <div className="relative z-10 px-4">
+            <h2 className="text-4xl md:text-5xl font-black mb-6">Vous avez un projet ?</h2>
+            <p className="text-white/80 max-w-xl mx-auto text-lg mb-10">
+              Notre équipe d&apos;experts est prête à donner vie à vos idées les plus innovantes.
+            </p>
+            <Link 
+              href="/contact" 
+              className="inline-flex items-center gap-2 px-10 py-5 bg-white text-accent font-black rounded-2xl hover:bg-secondary hover:text-foreground transition-all uppercase tracking-widest shadow-xl"
+            >
+              Contactez-nous
+              <ExternalLink className="w-5 h-5" />
             </Link>
-          </p>
-        </div>
-      </section>
+          </div>
+        </section>
+      </div>
     </div>
   )
 }

@@ -22,15 +22,9 @@ import {
 import { useAuth } from "@/hooks/use-auth"
 import { useCart } from "@/hooks/use-cart"
 import { useTheme } from "next-themes"
+import Logo from "@/components/logo"
 
-const navLinks = [
-  { label: "Accueil", href: "/" },
-  { label: "Produits", href: "/products" },
-  { label: "Deals", href: "/deals" },
-  { label: "Marques", href: "/brands" },
-  { label: "Catégories", href: "/categories" },
-  { label: "À Propos", href: "/about" },
-]
+import { NAV_LINKS, USER_MENU_LINKS } from "@/lib/nav-config"
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false)
@@ -120,19 +114,7 @@ export default function Navbar() {
         <div className="section-container">
           <div className="flex items-center justify-between h-16 md:h-18">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2.5 shrink-0">
-              <div className="w-9 h-9 rounded-lg bg-accent flex items-center justify-center">
-                <span className="text-white font-bold text-lg">K</span>
-              </div>
-              <div>
-                <span className="font-bold text-base md:text-lg text-foreground leading-none">
-                  KARKACHI
-                </span>
-                <span className="block text-[8px] md:text-[10px] text-muted-foreground tracking-[0.2em] uppercase -mt-0.5">
-                  Phone
-                </span>
-              </div>
-            </Link>
+            <Logo />
 
             {/* Desktop Search */}
             <form
@@ -205,31 +187,27 @@ export default function Navbar() {
                       </p>
                       <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                     </div>
-                    <Link
-                      href="/orders"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-secondary transition-colors"
-                    >
-                      <Package className="w-4 h-4" /> Mes commandes
-                    </Link>
-                    {isAdmin && (
-                      <Link
-                        href="/admin"
-                        onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-secondary transition-colors"
-                      >
-                        <Settings className="w-4 h-4" /> Admin Panel
-                      </Link>
-                    )}
-                    <button
-                      onClick={() => {
-                        setUserMenuOpen(false)
-                        logout()
-                      }}
-                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-destructive hover:bg-secondary transition-colors w-full"
-                    >
-                      <LogOut className="w-4 h-4" /> Déconnexion
-                    </button>
+                    {USER_MENU_LINKS.map((link) => {
+                      if (link.adminOnly && !isAdmin) return null
+                      const Icon = link.icon
+                      const isDestructive = link.destructive
+                      
+                      return (
+                        <button
+                          key={link.label}
+                          onClick={() => {
+                            setUserMenuOpen(false)
+                            if (link.action === "logout") logout()
+                            else router.push(link.href!)
+                          }}
+                          className={`flex items-center gap-2.5 px-4 py-2.5 text-sm w-full transition-colors ${
+                            isDestructive ? "text-destructive hover:bg-destructive/10" : "text-foreground hover:bg-secondary"
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" /> {link.label}
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -237,26 +215,50 @@ export default function Navbar() {
 
             {/* Mobile Actions */}
             <div className="flex md:hidden items-center gap-1">
+              {/* Mobile Search Toggle */}
               <button
                 onClick={() => setSearchOpen(!searchOpen)}
-                className="p-2.5 text-muted-foreground"
+                className="p-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Toggle search"
               >
                 <Search className="w-5 h-5" />
               </button>
-              <Link href="/cart" className="p-2.5 text-muted-foreground relative">
+
+              {/* Mobile Cart */}
+              <Link
+                href="/cart"
+                className="p-2.5 text-muted-foreground hover:text-foreground transition-colors relative"
+              >
                 <ShoppingCart className="w-5 h-5" />
                 {totalItems > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
-                    {totalItems}
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-accent text-white text-[9px] font-bold flex items-center justify-center">
+                    {totalItems > 99 ? "9+" : totalItems}
                   </span>
                 )}
               </Link>
+
+              {/* Mobile User/Login */}
+              <button
+                onClick={() => isAuthenticated ? router.push("/dashboard") : router.push("/auth/login")}
+                className="p-2.5 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <User className="w-5 h-5" />
+              </button>
+
+              {/* Theme Toggle */}
+              <button
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="p-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Toggle theme"
+              >
+                {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
             </div>
           </div>
 
           {/* Desktop Nav Links */}
           <nav className="hidden md:flex items-center gap-1 pb-2 -mt-1">
-            {navLinks.map((link) => (
+            {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -291,110 +293,6 @@ export default function Navbar() {
       </header>
     </div>
 
-      {/* ── Mobile Drawer ── */}
-      {mobileOpen && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden"
-            onClick={() => setMobileOpen(false)}
-          />
-          <div className="fixed top-0 right-0 bottom-0 w-[280px] bg-background z-50 md:hidden shadow-2xl animate-slide-down overflow-y-auto">
-            <div className="p-5">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <span className="font-bold text-lg text-foreground">Menu</span>
-                <button onClick={() => setMobileOpen(false)} className="p-1 text-muted-foreground">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* User info */}
-              {isAuthenticated && user && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary mb-4">
-                  <div className="w-10 h-10 rounded-full bg-accent/10 text-accent flex items-center justify-center font-bold">
-                    {user.name?.[0]?.toUpperCase() || "U"}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate">{user.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Nav Links */}
-              <nav className="space-y-1 mb-6">
-                {navLinks.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`block px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                      pathname === link.href
-                        ? "text-accent bg-accent/10"
-                        : "text-foreground hover:bg-secondary"
-                    }`}
-                  >
-                    {link.label}
-                  </Link>
-                ))}
-              </nav>
-
-              <hr className="border-border mb-4" />
-
-              {/* Actions */}
-              <div className="space-y-1">
-                <Link
-                  href="/wishlist"
-                  className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-                >
-                  <Heart className="w-4 h-4" /> Liste de souhaits
-                </Link>
-                <Link
-                  href="/orders"
-                  className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-                >
-                  <Package className="w-4 h-4" /> Mes commandes
-                </Link>
-                {isAdmin && (
-                  <Link
-                    href="/admin"
-                    className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-                  >
-                    <Settings className="w-4 h-4" /> Admin Panel
-                  </Link>
-                )}
-
-                {/* Theme toggle */}
-                <button
-                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                  className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-secondary transition-colors w-full"
-                >
-                  {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                  {theme === "dark" ? "Mode clair" : "Mode sombre"}
-                </button>
-              </div>
-
-              {/* Auth */}
-              <div className="mt-6">
-                {isAuthenticated ? (
-                  <button
-                    onClick={logout}
-                    className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl text-sm font-medium text-destructive border border-destructive/30 hover:bg-destructive/5 transition-colors"
-                  >
-                    <LogOut className="w-4 h-4" /> Déconnexion
-                  </button>
-                ) : (
-                  <Link
-                    href="/auth/login"
-                    className="btn-cta block text-center w-full text-sm"
-                  >
-                    Se connecter
-                  </Link>
-                )}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
     </>
   )
 }

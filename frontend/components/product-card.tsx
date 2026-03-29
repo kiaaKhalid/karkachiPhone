@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useState, useEffect } from "react"
 import { Star, ShoppingCart, Heart } from "lucide-react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 
 interface ProductCardProps {
   product: {
@@ -113,13 +114,15 @@ export default function ProductCard({
               <span className="absolute top-3 right-3 badge-flash z-10">⚡ Flash</span>
             )}
 
-            <img
-              src={getImageUrl(product.image)}
-              alt={product.name}
-              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "/Placeholder.png"; }}
-              className="w-full h-full object-contain p-6 transform group-hover:scale-105 transition-transform duration-500"
-              loading="lazy"
-            />
+            <div className="relative w-full h-full p-6 transform group-hover:scale-105 transition-transform duration-500">
+              <Image
+                src={getImageUrl(product.image)}
+                alt={product.name}
+                fill
+                className="object-contain p-6"
+                loading="lazy"
+              />
+            </div>
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-300" />
           </Link>
 

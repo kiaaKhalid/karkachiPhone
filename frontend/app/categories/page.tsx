@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import Image from "next/image"
 
 interface CategoryChoix {
   id: string
@@ -69,28 +70,40 @@ export default function CategoriesPage() {
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">Toutes les catégories</h1>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-        {categories.map((category) => (
-          <Link
-            key={category.id}
-            href={`/categories/${category.name.toLowerCase().replace(/\s+/g, "-")}`}
-          >
-            <Card className="flex flex-col items-center justify-center p-6 text-center hover:shadow-lg transition-all duration-300 border border-border/50 bg-card/50 h-full rounded-2xl">
-              <CardContent className="flex flex-col items-center justify-center p-0 w-full">
-                <div className="w-20 h-20 rounded-full bg-background border border-border/40 flex items-center justify-center mb-3 p-3 group-hover:scale-105 transition-transform duration-300">
-                  <img
-                    src={category.image || "/Placeholder.png?height=100&width=100"}
-                    alt={category.name}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <h3 className="text-base font-bold text-foreground">{category.name}</h3>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+    <div className="min-h-screen bg-background pt-4">
+      <div className="section-container py-8 md:py-12">
+        <div className="mb-12 space-y-2">
+          <h1 className="text-3xl md:text-5xl font-black text-foreground tracking-tight">
+            Toutes les <span className="text-accent">Catégories</span>
+          </h1>
+          <p className="text-muted-foreground text-sm md:text-base font-medium">
+            Explorez notre univers par thématique.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          {categories.map((category) => (
+            <Link
+              key={category.id}
+              href={`/categories/${category.name.toLowerCase().replace(/\s+/g, "-")}`}
+            >
+              <Card className="flex flex-col items-center justify-center p-6 text-center hover:shadow-xl transition-all duration-500 border border-border/40 bg-card hover:border-accent/40 h-full rounded-2xl group overflow-hidden">
+                <CardContent className="flex flex-col items-center justify-center p-0 w-full">
+                  <div className="w-24 h-24 rounded-full bg-secondary/30 border border-border/20 flex items-center justify-center mb-4 p-4 group-hover:bg-accent/5 transition-all duration-500 group-hover:scale-110 relative">
+                    <Image
+                      src={category.image || "/Placeholder.png"}
+                      alt={category.name}
+                      fill
+                      className="object-contain p-4"
+                    />
+                  </div>
+                  <h3 className="text-base font-black text-foreground group-hover:text-accent transition-colors tracking-tight">
+                    {category.name}
+                  </h3>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   )

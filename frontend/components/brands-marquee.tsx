@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Image from "next/image"
 
 const API = process.env.NEXT_PUBLIC_API_URL
 
@@ -31,12 +32,15 @@ export default function BrandsMarquee() {
               className="flex items-center gap-3 px-6 py-3 rounded-xl bg-background border border-border/50 shrink-0 hover:shadow-card-hover transition-shadow"
             >
               {brand.logoUrl ? (
-                <img
-                  src={brand.logoUrl}
-                  alt={brand.name}
-                  className="w-8 h-8 object-contain"
-                  loading="lazy"
-                />
+                <div className="relative w-8 h-8 shrink-0">
+                  <Image
+                    src={brand.logoUrl}
+                    alt={brand.name}
+                    fill
+                    className="object-contain"
+                    loading="lazy"
+                  />
+                </div>
               ) : (
                 <div className="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center font-bold text-sm">
                   {brand.name?.[0]}

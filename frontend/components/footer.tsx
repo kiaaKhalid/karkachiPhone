@@ -13,6 +13,7 @@ const footerLinks = {
   ],
   support: [
     { label: "FAQ", href: "/about" },
+    { label: "Services", href: "/services" },
     { label: "Livraison", href: "/services" },
     { label: "Retours", href: "/services" },
     { label: "Garantie", href: "/services" },
