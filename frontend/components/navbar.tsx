@@ -40,6 +40,12 @@ export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth()
   const { totalItems } = useCart()
   const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  // Avoid hydration mismatch
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Scroll handler
   useEffect(() => {
