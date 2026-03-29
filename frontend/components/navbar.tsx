@@ -150,7 +150,7 @@ export default function Navbar() {
                 className="p-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
                 aria-label="Toggle theme"
               >
-                {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                {mounted && (theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />)}
               </button>
 
               {/* Wishlist */}
@@ -249,7 +249,7 @@ export default function Navbar() {
                 className="p-2.5 text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Toggle theme"
               >
-                {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                {mounted && (theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />)}
               </button>
             </div>
           </div>
