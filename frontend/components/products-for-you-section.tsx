@@ -30,17 +30,17 @@ export default function ProductsForYouSection() {
   if (!isLoading && products.length === 0) return null
 
   return (
-    <section className="bg-white">
-      <div className="section-container py-10 md:py-16 border-t border-gray-100">
+    <section className="bg-background">
+      <div className="section-container py-10 md:py-16 border-t border-border/50">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
               <h2 className="section-heading">Recommandé Pour Vous</h2>
-              <p className="section-subheading">Sélectionné selon vos goûts</p>
+              <p className="section-subheading text-muted-foreground">Sélectionné selon vos goûts</p>
             </div>
           </div>
           <Link
